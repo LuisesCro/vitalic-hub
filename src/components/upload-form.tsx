@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { FilePicker } from "./file-picker";
 
 type State = { ok?: string; error?: string };
 
@@ -16,12 +17,12 @@ export function UploadForm({
   const [state, formAction, pending] = useActionState<State, FormData>(action, {});
   return (
     <form action={formAction} className="space-y-3">
-      <input type="file" name="file" accept={accept} required className="input" />
+      <FilePicker accept={accept} />
       <button className="btn-primary" disabled={pending}>
         {pending ? "Procesando…" : button}
       </button>
-      {state.ok && <p className="text-sm text-green-700 dark:text-green-400">{state.ok}</p>}
-      {state.error && <p className="text-sm text-red-600">{state.error}</p>}
+      {state.ok && <p className="rounded-lg px-3 py-2 text-sm" style={{ background: "var(--good-bg)", color: "var(--good)" }}>{state.ok}</p>}
+      {state.error && <p className="rounded-lg px-3 py-2 text-sm" style={{ background: "var(--bad-bg)", color: "var(--bad)" }}>{state.error}</p>}
     </form>
   );
 }
