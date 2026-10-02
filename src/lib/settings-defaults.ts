@@ -1,12 +1,12 @@
 // Valores iniciales de los parámetros de negocio. Se editan desde la página de Ajustes.
 export const DEFAULT_SETTINGS = {
-  margenObjetivoFrutosSecos: 0.35,
+  margenObjetivoFrutosSecos: 0.4,
   margenObjetivoEspecias: 0.5,
-  margenMinimo: 0.2,
+  margenMinimo: 0.4,
   posicionCompetencia: -0.03,
   redondeoPrecio: 500,
   mermaEmpaque: 0.01,
-  permitirBajarPrecios: 0,
+  permitirBajarPrecios: 1,
   // Costo de bolsa + etiqueta por presentación (COP). Se aplica según los gramos del producto.
   empaqueHasta50g: 0,
   empaqueHasta150g: 0,

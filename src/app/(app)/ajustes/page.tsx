@@ -1,6 +1,7 @@
 import { getSettings } from "@/lib/settings";
 import { SETTING_LABELS, type SettingKey } from "@/lib/settings-defaults";
 import { saveSettings } from "./actions";
+import { PasswordForm } from "./password-form";
 
 export const metadata = { title: "Ajustes · Vitalic Hub" };
 
@@ -28,6 +29,7 @@ export default async function AjustesPage() {
         })}
         <div className="sm:col-span-2"><button className="btn-primary">Guardar ajustes</button></div>
       </form>
+      <PasswordForm />
     </div>
   );
 }

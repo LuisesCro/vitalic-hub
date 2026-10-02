@@ -24,9 +24,9 @@ elija) y se importan aquí.
 
 1. Referencia: el precio más bajo de la competencia para el mismo producto y peso.
 2. Precio competitivo: la referencia ajustada por la posición elegida (por defecto 3 % más barato).
-3. Nunca por debajo del piso que garantiza el margen mínimo (por defecto 20 %).
+3. Nunca por debajo del piso que garantiza el margen mínimo (por defecto 40 %).
 4. Sin competencia: se mantiene el precio actual, salvo que esté bajo el margen mínimo.
-5. Por defecto no recomienda bajar precios (se cambia en Ajustes).
+5. Con competencia puede recomendar bajar precios, siempre respetando el margen mínimo (se desactiva en Ajustes).
 6. Si el costo parece mal cargado (más del doble del precio), pide revisarlo en vez de recomendar.
 
 ## Tecnología
@@ -52,12 +52,14 @@ Luego, en la app: Importar → catálogo de productos de Vendty → ventas (Tran
 
 1. **Base de datos:** crear un proyecto en Supabase. En Project Settings → Database copiar la cadena de
    conexión del pooler (modo transacción, puerto 6543). Esa es `DATABASE_URL`.
-2. **Migraciones y usuarios:** desde un computador con el repositorio, con `DATABASE_URL` apuntando a
-   Supabase: `npm run db:migrate && npm run db:seed`.
+   Al crear el proyecto, desactivar "Enable Data API": la app se conecta directo a Postgres y así las
+   tablas no quedan expuestas en la API pública de Supabase.
+2. **Tablas:** en Supabase → SQL Editor, pegar y ejecutar `drizzle/0000_init.sql` (o correr
+   `npm run db:migrate` con `DATABASE_URL` apuntando a Supabase).
 3. **Aplicación:** importar el repositorio en Vercel y definir las variables `DATABASE_URL`, `AUTH_SECRET`
-   (texto aleatorio de 32+ caracteres) y `ANTHROPIC_API_KEY`.
-4. Entrar con los usuarios definidos en `SEED_USERS` y cambiar las contraseñas iniciales volviendo a
-   correr el seed con claves nuevas.
+   (texto aleatorio de 32+ caracteres), `SEED_USERS` y `ANTHROPIC_API_KEY`.
+4. **Usuarios:** en el primer ingreso, si la base no tiene usuarios, la app los crea desde `SEED_USERS`.
+   Cada persona cambia su clave en Ajustes; después se puede borrar `SEED_USERS` de Vercel.
 
 ## Comandos
 

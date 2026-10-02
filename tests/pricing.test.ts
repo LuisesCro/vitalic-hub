@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { margin, recommendPrice } from "@/lib/pricing";
 import { DEFAULT_SETTINGS } from "@/lib/settings-defaults";
 
-const s = { ...DEFAULT_SETTINGS, permitirBajarPrecios: 1 };
+// Valores fijos para que las pruebas no dependan de los ajustes por defecto.
+const s = { ...DEFAULT_SETTINGS, margenMinimo: 0.2, margenObjetivoFrutosSecos: 0.35, margenObjetivoEspecias: 0.5, posicionCompetencia: -0.03, permitirBajarPrecios: 1 };
 
 describe("margin", () => {
   it("calcula sobre el precio sin IVA", () => {
@@ -74,5 +75,28 @@ describe("recommendPrice", () => {
     );
     expect(r.recommendedGross).toBe(9000);
     expect(r.rule).toBe("no-bajar");
+  });
+});
+
+describe("ajustes por defecto de Vitalic", () => {
+  it("margen mínimo de 40% y permite bajar precios con competencia", () => {
+    expect(DEFAULT_SETTINGS.margenMinimo).toBe(0.4);
+    expect(DEFAULT_SETTINGS.permitirBajarPrecios).toBe(1);
+    expect(DEFAULT_SETTINGS.margenObjetivoFrutosSecos).toBeGreaterThanOrEqual(DEFAULT_SETTINGS.margenMinimo);
+  });
+  it("baja el precio cuando la competencia está más barata y el margen lo permite", () => {
+    const r = recommendPrice(
+      { costNet: 2000, currentPriceGross: 9000, ivaRate: 0, category: "Aliños", competitorPricesGross: [6000] },
+      DEFAULT_SETTINGS,
+    );
+    expect(r.recommendedGross).toBe(6000); // 6000*0.97 = 5820 -> 6000; piso 2000/0.6 = 3334 -> 3500
+    expect(r.change).toBe(-3000);
+  });
+  it("sin competencia no baja el precio aunque esté permitido", () => {
+    const r = recommendPrice(
+      { costNet: 2000, currentPriceGross: 9000, ivaRate: 0, category: "Aliños", competitorPricesGross: [] },
+      DEFAULT_SETTINGS,
+    );
+    expect(r.recommendedGross).toBe(9000);
   });
 });
