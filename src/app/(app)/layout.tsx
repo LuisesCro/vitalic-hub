@@ -17,7 +17,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             <button className="underline">Salir</button>
           </form>
         </div>
-        <Nav />
+        <Nav role={session.role} />
       </header>
       {children}
     </div>

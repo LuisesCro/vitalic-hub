@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/session";
 import { and, asc, desc, eq, isNotNull } from "drizzle-orm";
 import { db } from "@/db";
 import { packagingRuns, products } from "@/db/schema";
@@ -7,6 +8,7 @@ import { PackForm } from "./pack-form";
 export const metadata = { title: "Empaque · Vitalic Hub" };
 
 export default async function EmpaquePage() {
+  await requireAdmin();
   const [list, runs] = await Promise.all([
     db.select({ id: products.id, name: products.name }).from(products)
       .where(and(eq(products.active, true), isNotNull(products.rawMaterialId), isNotNull(products.grams)))

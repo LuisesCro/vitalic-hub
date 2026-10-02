@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/session";
 import Link from "next/link";
 import { desc, eq } from "drizzle-orm";
 import { db } from "@/db";
@@ -9,6 +10,7 @@ import { uploadInvoice } from "./actions";
 export const metadata = { title: "Compras · Vitalic Hub" };
 
 export default async function ComprasPage() {
+  await requireAdmin();
   const rows = await db
     .select({
       id: purchases.id,

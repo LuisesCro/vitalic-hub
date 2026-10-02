@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { products, rawMaterials, saleLines } from "@/db/schema";
 import { matchRawMaterial } from "@/lib/matching";
-import { requireSession } from "@/lib/session";
+import { requireAdmin } from "@/lib/session";
 import { gramsFromName } from "@/lib/units";
 import { parseInventoryCount, parseVendtyProducts, parseVendtyTransactions } from "@/lib/vendty";
 import { applyMovement } from "@/lib/inventory";
@@ -21,7 +21,7 @@ async function fileBytes(formData: FormData): Promise<Uint8Array | null> {
 }
 
 export async function importProducts(_prev: ImportState, formData: FormData): Promise<ImportState> {
-  await requireSession();
+  await requireAdmin();
   const bytes = await fileBytes(formData);
   if (!bytes) return { error: "Selecciona el archivo productos.xls de Vendty" };
   let rows;
@@ -77,7 +77,7 @@ export async function importProducts(_prev: ImportState, formData: FormData): Pr
 }
 
 export async function importTransactions(_prev: ImportState, formData: FormData): Promise<ImportState> {
-  await requireSession();
+  await requireAdmin();
   const bytes = await fileBytes(formData);
   if (!bytes) return { error: "Selecciona el archivo de transacciones de Vendty" };
   let rows;
@@ -119,7 +119,7 @@ export async function importTransactions(_prev: ImportState, formData: FormData)
 }
 
 export async function excludeSaleLine(formData: FormData) {
-  await requireSession();
+  await requireAdmin();
   const id = Number(formData.get("id"));
   await db.update(saleLines).set({ excluded: true, excludedReason: "Excluida a mano" }).where(eq(saleLines.id, id));
   revalidatePath("/", "layout");
@@ -130,7 +130,7 @@ export async function excludeSaleLine(formData: FormData) {
  * contada y registra la diferencia como ajuste con fecha de hoy.
  */
 export async function importInventory(_prev: ImportState, formData: FormData): Promise<ImportState> {
-  const session = await requireSession();
+  const session = await requireAdmin();
   const bytes = await fileBytes(formData);
   if (!bytes) return { error: "Selecciona el archivo de inventario" };
   let lines;

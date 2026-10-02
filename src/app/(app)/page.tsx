@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/session";
 import Link from "next/link";
 import { count, eq } from "drizzle-orm";
 import { db } from "@/db";
@@ -7,6 +8,7 @@ import { expensesByMonth, monthlySales, productPerformance, rawMaterialConsumpti
 import { getSettings } from "@/lib/settings";
 
 export default async function TableroPage() {
+  await requireAdmin();
   const [months, exp, perf, consumption, materials, [pending], s, tracked, [cash]] = await Promise.all([
     monthlySales(), expensesByMonth(), productPerformance(90), rawMaterialConsumption(90),
     db.select().from(rawMaterials).where(eq(rawMaterials.active, true)),

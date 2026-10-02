@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/session";
 import Link from "next/link";
 import { desc, eq } from "drizzle-orm";
 import { db } from "@/db";
@@ -14,6 +15,7 @@ const VIEWS = { cambios: "Con cambio", bajo: "Bajo el margen mínimo", todos: "T
 type View = keyof typeof VIEWS;
 
 export default async function PreciosPage({ searchParams }: { searchParams: Promise<{ vista?: string }> }) {
+  await requireAdmin();
   const vista: View = ((await searchParams).vista as View) in VIEWS ? ((await searchParams).vista as View) : "cambios";
   const s = await getSettings();
   const [rows, prices] = await Promise.all([

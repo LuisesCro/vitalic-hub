@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/session";
 import { count, max, min } from "drizzle-orm";
 import { db } from "@/db";
 import { products, rawMaterials, saleLines } from "@/db/schema";
@@ -7,6 +8,7 @@ import { importInventory, importProducts, importTransactions } from "./actions";
 export const metadata = { title: "Importar · Vitalic Hub" };
 
 export default async function ImportarPage() {
+  await requireAdmin();
   const [[p], [m], [s]] = await Promise.all([
     db.select({ n: count() }).from(products),
     db.select({ n: count() }).from(rawMaterials),

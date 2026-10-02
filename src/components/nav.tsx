@@ -16,11 +16,17 @@ const LINKS = [
   { href: "/ajustes", label: "Ajustes" },
 ];
 
-export function Nav() {
+const CASHIER_LINKS = [
+  { href: "/caja", label: "Caja" },
+  { href: "/ajustes", label: "Mi clave" },
+];
+
+export function Nav({ role }: { role: string }) {
   const path = usePathname();
+  const links = role === "admin" ? LINKS : CASHIER_LINKS;
   return (
     <nav className="flex gap-1 overflow-x-auto pb-1 text-sm">
-      {LINKS.map((l) => {
+      {links.map((l) => {
         const active = l.href === "/" ? path === "/" : path.startsWith(l.href);
         return (
           <Link

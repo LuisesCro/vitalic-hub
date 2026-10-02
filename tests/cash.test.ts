@@ -41,3 +41,15 @@ describe("cuadre de caja", () => {
     expect(parsePesos(null)).toBe(0);
   });
 });
+
+import { cashierCanOpen } from "@/lib/roles";
+
+describe("acceso de cajera", () => {
+  it("solo abre caja y su clave", () => {
+    expect(cashierCanOpen("/caja")).toBe(true);
+    expect(cashierCanOpen("/ajustes")).toBe(true);
+    expect(cashierCanOpen("/")).toBe(false);
+    expect(cashierCanOpen("/resultados")).toBe(false);
+    expect(cashierCanOpen("/cajas-secretas")).toBe(false);
+  });
+});

@@ -5,12 +5,12 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { packagingRuns, products } from "@/db/schema";
 import { applyMovement } from "@/lib/inventory";
-import { requireSession } from "@/lib/session";
+import { requireAdmin } from "@/lib/session";
 
 export type PackState = { ok?: string; error?: string };
 
 export async function recordPackaging(_prev: PackState, formData: FormData): Promise<PackState> {
-  const session = await requireSession();
+  const session = await requireAdmin();
   const productId = Number(formData.get("productId"));
   const bags = Number(formData.get("bags"));
   const wasteGrams = Number(String(formData.get("waste") ?? "0").replace(",", ".")) || 0;

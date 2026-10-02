@@ -4,10 +4,10 @@ import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { products } from "@/db/schema";
-import { requireSession } from "@/lib/session";
+import { requireAdmin } from "@/lib/session";
 
 export async function updateProduct(formData: FormData) {
-  await requireSession();
+  await requireAdmin();
   const id = Number(formData.get("id"));
   const raw = String(formData.get("rawMaterialId") ?? "");
   const grams = Number(String(formData.get("grams") ?? "").replace(",", "."));

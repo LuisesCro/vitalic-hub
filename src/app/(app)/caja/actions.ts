@@ -7,7 +7,7 @@ import { db } from "@/db";
 import { cashMovements, cashSessions } from "@/db/schema";
 import { DENOMINATIONS, MOVEMENT_KINDS, PAYMENT_METHODS, isMovementKind, parsePesos, sumDenominations } from "@/lib/cash";
 import { todayISO } from "@/lib/format";
-import { requireSession } from "@/lib/session";
+import { requireAdmin, requireSession } from "@/lib/session";
 
 function validDate(value: FormDataEntryValue | null): string | null {
   const s = String(value ?? "");
@@ -107,7 +107,7 @@ export async function closeCash(_prev: CloseState, formData: FormData): Promise<
 
 /** Reabre una caja cerrada para corregirla. */
 export async function reopenCash(formData: FormData) {
-  await requireSession();
+  await requireAdmin();
   const id = Number(formData.get("id"));
   await db.update(cashSessions).set({ status: "abierta", closedAt: null, closedBy: null }).where(eq(cashSessions.id, id));
   refresh();

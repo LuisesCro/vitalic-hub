@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { rawMaterials } from "@/db/schema";
 import { applyMovement } from "@/lib/inventory";
-import { requireSession } from "@/lib/session";
+import { requireAdmin } from "@/lib/session";
 import { todayISO } from "@/lib/format";
 
 function kgField(formData: FormData, name: string): number | null {
@@ -17,7 +17,7 @@ function kgField(formData: FormData, name: string): number | null {
 
 /** Conteo físico: deja la existencia en lo contado y registra la diferencia como ajuste. */
 export async function recordCount(formData: FormData) {
-  const session = await requireSession();
+  const session = await requireAdmin();
   const id = Number(formData.get("id"));
   const countedKg = kgField(formData, "counted");
   const minKg = kgField(formData, "min");

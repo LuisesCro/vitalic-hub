@@ -9,7 +9,7 @@ import { readInvoiceWithAI, type ImageMediaType } from "@/lib/ai-invoice";
 import { parseDianFile, type ParsedInvoice } from "@/lib/dian";
 import { applyMovement } from "@/lib/inventory";
 import { matchRawMaterial } from "@/lib/matching";
-import { requireSession } from "@/lib/session";
+import { requireAdmin } from "@/lib/session";
 import { kgPerInvoiceUnit, normalize } from "@/lib/units";
 import { todayISO } from "@/lib/format";
 
@@ -28,7 +28,7 @@ function lineKey(code: string | null, description: string) {
 }
 
 export async function uploadInvoice(_prev: UploadState, formData: FormData): Promise<UploadState> {
-  const session = await requireSession();
+  const session = await requireAdmin();
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) return { error: "Selecciona la factura (XML, ZIP, foto o PDF)" };
   const bytes = new Uint8Array(await file.arrayBuffer());
@@ -156,14 +156,14 @@ async function saveEdits(purchaseId: number, formData: FormData) {
 }
 
 export async function saveDraft(formData: FormData) {
-  await requireSession();
+  await requireAdmin();
   const purchaseId = Number(formData.get("purchaseId"));
   await saveEdits(purchaseId, formData);
   revalidatePath(`/compras/${purchaseId}`);
 }
 
 export async function confirmPurchase(formData: FormData) {
-  const session = await requireSession();
+  const session = await requireAdmin();
   const purchaseId = Number(formData.get("purchaseId"));
   await saveEdits(purchaseId, formData);
 
@@ -207,7 +207,7 @@ export async function confirmPurchase(formData: FormData) {
 }
 
 export async function deleteDraft(formData: FormData) {
-  await requireSession();
+  await requireAdmin();
   const purchaseId = Number(formData.get("purchaseId"));
   await db.delete(purchases).where(and(eq(purchases.id, purchaseId), inArray(purchases.status, ["borrador"])));
   revalidatePath("/compras");

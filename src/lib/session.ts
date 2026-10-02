@@ -1,14 +1,18 @@
 import "server-only";
 import { SignJWT, jwtVerify } from "jose";
+import { eq } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { db } from "@/db";
+import { users } from "@/db/schema";
+import { isRole, type Role } from "./roles";
 
 const COOKIE = "vitalic_session";
 const MAX_AGE_DAYS = 30;
 
-export type Session = { userId: number; name: string };
+export type Session = { userId: number; name: string; role: Role };
 
-function key() {
+export function sessionKey() {
   const secret = process.env.AUTH_SECRET;
   if (!secret || secret.length < 32) throw new Error("AUTH_SECRET debe tener al menos 32 caracteres");
   return new TextEncoder().encode(secret);
@@ -19,7 +23,7 @@ export async function createSession(session: Session) {
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime(`${MAX_AGE_DAYS}d`)
-    .sign(key());
+    .sign(sessionKey());
   (await cookies()).set(COOKIE, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
@@ -29,21 +33,39 @@ export async function createSession(session: Session) {
   });
 }
 
+/**
+ * Lee el token y confirma contra la base que el usuario sigue activo, con su rol
+ * actual: desactivar a alguien o cambiarle el rol tiene efecto inmediato.
+ */
 export async function readSession(): Promise<Session | null> {
   const token = (await cookies()).get(COOKIE)?.value;
   if (!token) return null;
+  let userId: number;
   try {
-    const { payload } = await jwtVerify(token, key());
-    return { userId: Number(payload.userId), name: String(payload.name) };
+    const { payload } = await jwtVerify(token, sessionKey());
+    userId = Number(payload.userId);
   } catch {
     return null;
   }
+  const [user] = await db
+    .select({ id: users.id, name: users.name, role: users.role, active: users.active })
+    .from(users)
+    .where(eq(users.id, userId));
+  if (!user || !user.active) return null;
+  return { userId: user.id, name: user.name, role: isRole(user.role) ? user.role : "cajera" };
 }
 
 /** Para páginas y acciones del servidor: exige sesión o envía al login. */
 export async function requireSession(): Promise<Session> {
   const session = await readSession();
   if (!session) redirect("/login");
+  return session;
+}
+
+/** Para todo lo que no es la caja: solo administradores. */
+export async function requireAdmin(): Promise<Session> {
+  const session = await requireSession();
+  if (session.role !== "admin") redirect("/caja");
   return session;
 }
 

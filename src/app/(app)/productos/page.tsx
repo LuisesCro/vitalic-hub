@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/session";
 import Link from "next/link";
 import { and, asc, eq, isNull, or } from "drizzle-orm";
 import { db } from "@/db";
@@ -13,6 +14,7 @@ const VIEWS = { A: "Clase A", B: "Clase B", C: "Clase C", bajo: "Margen bajo", c
 type View = keyof typeof VIEWS;
 
 export default async function ProductosPage({ searchParams }: { searchParams: Promise<{ vista?: string }> }) {
+  await requireAdmin();
   const requested = (await searchParams).vista as View;
   const vista: View = requested in VIEWS ? requested : "A";
   const s = await getSettings();

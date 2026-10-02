@@ -15,6 +15,13 @@
       "when": 1790972967876,
       "tag": "0001_caja",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790973360770,
+      "tag": "0002_usuarios_roles",
+      "breakpoints": true
     }
   ]
 }

@@ -5,13 +5,13 @@ import { db } from "@/db";
 import { competitorPrices, competitors, products } from "@/db/schema";
 import { parseCompetitorFile } from "@/lib/competitors";
 import { matchProduct } from "@/lib/matching";
-import { requireSession } from "@/lib/session";
+import { requireAdmin } from "@/lib/session";
 import { todayISO } from "@/lib/format";
 
 export type CompetitorState = { ok?: string; error?: string };
 
 export async function uploadCompetitorCatalog(_prev: CompetitorState, formData: FormData): Promise<CompetitorState> {
-  await requireSession();
+  await requireAdmin();
   const name = String(formData.get("competitor") ?? "").trim();
   const file = formData.get("file");
   if (!name) return { error: "Escribe el nombre del competidor" };

@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/session";
 import { asc, eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { db } from "@/db";
@@ -6,6 +7,7 @@ import { fmtCOP, fmtNum } from "@/lib/format";
 import { confirmPurchase, deleteDraft, saveDraft } from "../actions";
 
 export default async function CompraPage({ params }: { params: Promise<{ id: string }> }) {
+  await requireAdmin();
   const id = Number((await params).id);
   if (!Number.isInteger(id)) notFound();
   const [purchase] = await db

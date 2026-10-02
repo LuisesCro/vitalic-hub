@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/session";
 import { desc } from "drizzle-orm";
 import { db } from "@/db";
 import { expenses } from "@/db/schema";
@@ -9,6 +10,7 @@ import { addExpense, copyExpenses, deleteExpense } from "./actions";
 export const metadata = { title: "Resultados · Vitalic Hub" };
 
 export default async function ResultadosPage() {
+  await requireAdmin();
   const [months, exp, recent] = await Promise.all([
     monthlySales(),
     expensesByMonth(),

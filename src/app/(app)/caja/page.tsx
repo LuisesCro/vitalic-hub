@@ -7,6 +7,7 @@ import {
   type MovementKind, type PaymentKey, type SalesByMethod,
 } from "@/lib/cash";
 import { fmtCOP, todayISO } from "@/lib/format";
+import { requireSession } from "@/lib/session";
 import { CloseForm } from "./close-form";
 import { addCashMovement, deleteCashMovement, openCash, reopenCash } from "./actions";
 
@@ -35,6 +36,7 @@ async function vendtyDay(date: string) {
 }
 
 export default async function CajaPage({ searchParams }: { searchParams: Promise<{ fecha?: string }> }) {
+  const session = await requireSession();
   const { fecha } = await searchParams;
   const today = todayISO();
   const date = fecha && /^\d{4}-\d{2}-\d{2}$/.test(fecha) && fecha <= today ? fecha : today;
@@ -154,7 +156,7 @@ export default async function CajaPage({ searchParams }: { searchParams: Promise
               />
             </section>
           ) : (
-            <ClosedSummary s={current} movements={movements} closedBy={names.get(current.closedBy ?? 0)} vendty={vendty} />
+            <ClosedSummary canReopen={session.role === "admin"} s={current} movements={movements} closedBy={names.get(current.closedBy ?? 0)} vendty={vendty} />
           )}
         </>
       )}
@@ -226,8 +228,9 @@ function MovementForm({ sessionId }: { sessionId: number }) {
 }
 
 function ClosedSummary({
-  s, movements, closedBy, vendty,
+  s, movements, closedBy, vendty, canReopen,
 }: {
+  canReopen: boolean;
   s: Session;
   movements: { kind: string; amount: number }[];
   closedBy?: string;
@@ -264,10 +267,14 @@ function ClosedSummary({
       <p className="text-sm text-muted">
         Cerró {closedBy ?? "—"}. Base para el día siguiente: {fmtCOP(s.nextBase)}.{s.closingNote ? ` Nota: ${s.closingNote}` : ""}
       </p>
-      <form action={reopenCash}>
-        <input type="hidden" name="id" value={s.id} />
-        <button className="btn-secondary">Reabrir para corregir</button>
-      </form>
+      {canReopen ? (
+        <form action={reopenCash}>
+          <input type="hidden" name="id" value={s.id} />
+          <button className="btn-secondary">Reabrir para corregir</button>
+        </form>
+      ) : (
+        <p className="text-sm text-muted">Si hay que corregir algo, avísale a Luis o a Paula para que reabran la caja.</p>
+      )}
     </section>
   );
 }

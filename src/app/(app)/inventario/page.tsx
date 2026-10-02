@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/session";
 import { asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { rawMaterials } from "@/db/schema";
@@ -10,6 +11,7 @@ export const metadata = { title: "Inventario · Vitalic Hub" };
 const COVERAGE_ALERT_DAYS = 14;
 
 export default async function InventarioPage() {
+  await requireAdmin();
   const [materials, consumption, tracked] = await Promise.all([
     db.select().from(rawMaterials).where(eq(rawMaterials.active, true)).orderBy(asc(rawMaterials.name)),
     rawMaterialConsumption(90),

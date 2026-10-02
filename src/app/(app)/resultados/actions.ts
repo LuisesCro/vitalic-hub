@@ -4,11 +4,11 @@ import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { expenses } from "@/db/schema";
-import { requireSession } from "@/lib/session";
+import { requireAdmin } from "@/lib/session";
 
 
 export async function addExpense(formData: FormData) {
-  await requireSession();
+  await requireAdmin();
   const month = String(formData.get("month") ?? ""); // AAAA-MM
   const category = String(formData.get("category") ?? "");
   const amount = Number(String(formData.get("amount") ?? "").replace(/[^0-9.]/g, ""));
@@ -20,7 +20,7 @@ export async function addExpense(formData: FormData) {
 
 /** Copia los gastos de un mes al siguiente (útil para gastos fijos). */
 export async function copyExpenses(formData: FormData) {
-  await requireSession();
+  await requireAdmin();
   const from = String(formData.get("from") ?? "");
   const to = String(formData.get("to") ?? "");
   if (!/^\d{4}-\d{2}$/.test(from) || !/^\d{4}-\d{2}$/.test(to)) return;
@@ -34,7 +34,7 @@ export async function copyExpenses(formData: FormData) {
 }
 
 export async function deleteExpense(formData: FormData) {
-  await requireSession();
+  await requireAdmin();
   const id = Number(formData.get("id"));
   const month = String(formData.get("month") ?? "");
   await db.delete(expenses).where(and(eq(expenses.id, id), eq(expenses.month, month)));
