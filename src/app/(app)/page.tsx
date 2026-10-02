@@ -1,18 +1,19 @@
 import Link from "next/link";
 import { count, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { purchases, rawMaterials } from "@/db/schema";
-import { fmtCOP, fmtMonth, fmtPct } from "@/lib/format";
+import { cashSessions, purchases, rawMaterials } from "@/db/schema";
+import { fmtCOP, fmtMonth, fmtPct, todayISO } from "@/lib/format";
 import { expensesByMonth, monthlySales, productPerformance, rawMaterialConsumption, trackedRawMaterialIds } from "@/lib/reports";
 import { getSettings } from "@/lib/settings";
 
 export default async function TableroPage() {
-  const [months, exp, perf, consumption, materials, [pending], s, tracked] = await Promise.all([
+  const [months, exp, perf, consumption, materials, [pending], s, tracked, [cash]] = await Promise.all([
     monthlySales(), expensesByMonth(), productPerformance(90), rawMaterialConsumption(90),
     db.select().from(rawMaterials).where(eq(rawMaterials.active, true)),
     db.select({ n: count() }).from(purchases).where(eq(purchases.status, "borrador")),
     getSettings(),
     trackedRawMaterialIds(),
+    db.select({ status: cashSessions.status, opening: cashSessions.openingCash }).from(cashSessions).where(eq(cashSessions.businessDate, todayISO())),
   ]);
 
   const closed = months.filter((m) => m.invoices > 100).slice(-6); // meses completos recientes
@@ -51,6 +52,12 @@ export default async function TableroPage() {
           <strong> {fmtCOP(breakEven)}</strong> de ventas al mes sin IVA. Promedio actual: {fmtCOP(avgSales)}.
         </p>
       )}
+      <Link href="/caja" className="card flex items-center justify-between gap-2 text-sm hover:border-brand-500">
+        <span className="font-semibold">Caja de hoy</span>
+        <span className={cash?.status === "abierta" ? "text-green-700 dark:text-green-400" : "text-muted"}>
+          {!cash ? "Sin abrir →" : cash.status === "abierta" ? `Abierta · base ${fmtCOP(cash.opening)} →` : "Cerrada · ver cuadre →"}
+        </span>
+      </Link>
       <div className="grid gap-3 md:grid-cols-3">
         <Alert href="/inventario" title="Insumos para pedir" n={toOrder.length} detail={toOrder.slice(0, 5).map((m) => m.name).join(", ")} />
         <Alert href="/productos?vista=A" title="Productos A con margen bajo" n={lowMarginA.length} detail={lowMarginA.slice(0, 5).map((r) => r.name).join(", ")} />

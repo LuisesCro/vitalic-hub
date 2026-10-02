@@ -203,3 +203,38 @@ export const settings = pgTable("settings", {
   key: text("key").primaryKey(),
   value: text("value").notNull(),
 });
+
+// Cuadre de caja: una jornada por día. Los montos de ventas incluyen IVA (lo que paga el cliente).
+export const cashSessions = pgTable("cash_sessions", {
+  id: serial("id").primaryKey(),
+  businessDate: date("business_date", { mode: "string" }).notNull().unique(),
+  status: text("status").notNull().default("abierta"), // abierta | cerrada
+  openingCash: money("opening_cash").notNull().default(0),
+  openedBy: integer("opened_by").references(() => users.id),
+  openedAt: timestamp("opened_at", { withTimezone: true }).defaultNow().notNull(),
+  salesCash: money("sales_cash").notNull().default(0),
+  salesCard: money("sales_card").notNull().default(0),
+  salesNequi: money("sales_nequi").notNull().default(0),
+  salesDaviplata: money("sales_daviplata").notNull().default(0),
+  salesTransfer: money("sales_transfer").notNull().default(0),
+  salesOther: money("sales_other").notNull().default(0),
+  countedCash: money("counted_cash"),
+  denominations: text("denominations"), // JSON {"100000": 3, ...}
+  nextBase: money("next_base"), // efectivo que queda en caja para el día siguiente
+  closingNote: text("closing_note"),
+  closedBy: integer("closed_by").references(() => users.id),
+  closedAt: timestamp("closed_at", { withTimezone: true }),
+});
+
+export const cashMovements = pgTable("cash_movements", {
+  id: serial("id").primaryKey(),
+  sessionId: integer("session_id")
+    .notNull()
+    .references(() => cashSessions.id, { onDelete: "cascade" }),
+  kind: text("kind").notNull(), // ingreso | egreso | retiro
+  category: text("category").notNull(),
+  amount: money("amount").notNull(), // siempre positivo; el tipo dice si suma o resta
+  note: text("note"),
+  createdBy: integer("created_by").references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});

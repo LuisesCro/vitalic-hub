@@ -54,7 +54,7 @@ Luego, en la app: Importar → catálogo de productos de Vendty → ventas (Tran
    conexión del pooler (modo transacción, puerto 6543). Esa es `DATABASE_URL`.
    Al crear el proyecto, desactivar "Enable Data API": la app se conecta directo a Postgres y así las
    tablas no quedan expuestas en la API pública de Supabase.
-2. **Tablas:** en Supabase → SQL Editor, pegar y ejecutar `drizzle/0000_init.sql` (o correr
+2. **Tablas:** en Supabase → SQL Editor, pegar y ejecutar `drizzle/0000_init.sql` y luego `drizzle/0001_caja.sql` (o correr
    `npm run db:migrate` con `DATABASE_URL` apuntando a Supabase).
 3. **Aplicación:** importar el repositorio en Netlify (usa `netlify.toml`) o en Vercel, y definir las variables `DATABASE_URL`, `AUTH_SECRET`
    (texto aleatorio de 32+ caracteres), `SEED_USERS` y `ANTHROPIC_API_KEY`.
