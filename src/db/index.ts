@@ -1,18 +1,26 @@
-import { drizzle } from "drizzle-orm/postgres-js";
+import { drizzle, type PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as schema from "./schema";
 
-const globalForDb = globalThis as unknown as { sql?: ReturnType<typeof postgres> };
+type Db = PostgresJsDatabase<typeof schema>;
+const globalForDb = globalThis as unknown as { vitalicDb?: Db };
 
-function connect() {
+// La conexión se abre en el primer uso, no al importar, para que la compilación funcione sin DATABASE_URL.
+function getDb(): Db {
+  if (globalForDb.vitalicDb) return globalForDb.vitalicDb;
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error("Falta la variable DATABASE_URL");
   // prepare: false permite usar el pooler de Supabase (modo transacción).
-  return postgres(url, { prepare: false, max: 5 });
+  const instance = drizzle(postgres(url, { prepare: false, max: 5, connect_timeout: 15 }), { schema });
+  globalForDb.vitalicDb = instance;
+  return instance;
 }
 
-const sql = globalForDb.sql ?? connect();
-if (process.env.NODE_ENV !== "production") globalForDb.sql = sql;
-
-export const db = drizzle(sql, { schema });
+export const db = new Proxy({} as Db, {
+  get(_target, prop) {
+    const instance = getDb();
+    const value = Reflect.get(instance, prop, instance);
+    return typeof value === "function" ? value.bind(instance) : value;
+  },
+});
 export { schema };
