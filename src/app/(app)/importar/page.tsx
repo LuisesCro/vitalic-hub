@@ -2,7 +2,7 @@ import { count, max, min } from "drizzle-orm";
 import { db } from "@/db";
 import { products, rawMaterials, saleLines } from "@/db/schema";
 import { UploadForm } from "@/components/upload-form";
-import { importProducts, importTransactions } from "./actions";
+import { importInventory, importProducts, importTransactions } from "./actions";
 
 export const metadata = { title: "Importar · Vitalic Hub" };
 
@@ -31,6 +31,14 @@ export default async function ImportarPage() {
           Vendty → Informes → Exportar facturas (Transacciones). Recomendado: una vez por semana.
         </p>
         <UploadForm action={importTransactions} accept=".xls,.xlsx" button="Importar ventas" />
+      </section>
+      <section className="card space-y-2">
+        <h2 className="font-semibold">3. Inventario inicial o conteo general</h2>
+        <p className="text-sm text-muted">
+          Vendty → Informes → Existencia de inventario, o una hoja tuya con dos columnas: <b>Insumo</b> y <b>Kg</b>.
+          Cada insumo del archivo queda con esa cantidad desde hoy; los que no estén en el archivo no cambian.
+        </p>
+        <UploadForm action={importInventory} accept=".xls,.xlsx,.csv" button="Cargar inventario" />
       </section>
     </div>
   );

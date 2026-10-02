@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import * as XLSX from "xlsx";
-import { parseVendtyProducts, parseVendtyTransactions, toNumber } from "@/lib/vendty";
+import { parseInventoryCount, parseVendtyProducts, parseVendtyTransactions, toNumber } from "@/lib/vendty";
 
 function book(rows: unknown[][]): Uint8Array {
   const wb = XLSX.utils.book_new();
@@ -37,5 +37,29 @@ describe("vendty", () => {
     expect(a.excluded).toBe(false);
     expect(a.soldAt.toISOString()).toBe("2025-11-06T14:50:26.000Z");
     expect(b.excluded).toBe(true);
+  });
+});
+
+describe("inventario contado", () => {
+  it("lee la existencia de Vendty y deja solo los insumos en gramos", () => {
+    const bytes = book([
+      ["Almacen", "Categoria", "Producto", "Codigo", "Unidad", "Precio Compra", "Unidades"],
+      ["General", "Frutos secos", "Mani dulce  250g", "VTL-FSS-MANDUL-250G", "unidad", 3500, 39],
+      ["General", "ingredientes", "Acacia entero", "ing003", "gramo", 10, 280],
+    ]);
+    expect(parseInventoryCount(bytes)).toEqual([{ code: "ing003", name: "Acacia entero", grams: 280 }]);
+  });
+
+  it("lee una hoja propia en kilos", () => {
+    const bytes = book([
+      ["Insumo", "Kg"],
+      ["Almendra", "12,5"],
+      ["Canela", 3],
+    ]);
+    const lines = parseInventoryCount(bytes);
+    expect(lines).toEqual([
+      { code: null, name: "Almendra", grams: 12.5 * 1000 },
+      { code: null, name: "Canela", grams: 3000 },
+    ]);
   });
 });

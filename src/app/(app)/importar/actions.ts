@@ -7,7 +7,10 @@ import { products, rawMaterials, saleLines } from "@/db/schema";
 import { matchRawMaterial } from "@/lib/matching";
 import { requireSession } from "@/lib/session";
 import { gramsFromName } from "@/lib/units";
-import { parseVendtyProducts, parseVendtyTransactions } from "@/lib/vendty";
+import { parseInventoryCount, parseVendtyProducts, parseVendtyTransactions } from "@/lib/vendty";
+import { applyMovement } from "@/lib/inventory";
+import { todayISO } from "@/lib/format";
+import { normalize } from "@/lib/units";
 
 export type ImportState = { ok?: string; error?: string };
 
@@ -120,4 +123,62 @@ export async function excludeSaleLine(formData: FormData) {
   const id = Number(formData.get("id"));
   await db.update(saleLines).set({ excluded: true, excludedReason: "Excluida a mano" }).where(eq(saleLines.id, id));
   revalidatePath("/", "layout");
+}
+
+/**
+ * Inventario inicial o conteo general: deja cada insumo del archivo en la cantidad
+ * contada y registra la diferencia como ajuste con fecha de hoy.
+ */
+export async function importInventory(_prev: ImportState, formData: FormData): Promise<ImportState> {
+  const session = await requireSession();
+  const bytes = await fileBytes(formData);
+  if (!bytes) return { error: "Selecciona el archivo de inventario" };
+  let lines;
+  try {
+    lines = parseInventoryCount(bytes);
+  } catch {
+    return { error: "No pude leer el archivo. Usa la existencia de inventario de Vendty o una hoja con columnas Insumo y Kg." };
+  }
+  if (lines.length === 0) return { error: "El archivo no trae insumos con cantidad en kilos o gramos" };
+
+  const materials = await db
+    .select({ id: rawMaterials.id, name: rawMaterials.name, code: rawMaterials.vendtyCode })
+    .from(rawMaterials);
+  if (materials.length === 0) return { error: "Primero importa el catálogo de productos de Vendty" };
+  const byCode = new Map(materials.filter((m) => m.code).map((m) => [m.code!.toLowerCase(), m]));
+  const byName = new Map(materials.map((m) => [normalize(m.name), m]));
+
+  const today = todayISO();
+  const missing: string[] = [];
+  let counted = 0;
+  let negatives = 0;
+  const seen = new Set<number>();
+  await db.transaction(async (tx) => {
+    for (const line of lines) {
+      const material =
+        (line.code && byCode.get(line.code.toLowerCase())) || byName.get(normalize(line.name)) || matchRawMaterial(line.name, materials);
+      if (!material || seen.has(material.id)) {
+        if (!material) missing.push(line.name);
+        continue;
+      }
+      seen.add(material.id);
+      // Una existencia negativa no es real: se toma como cero.
+      if (line.grams < 0) negatives++;
+      const target = Math.max(line.grams, 0);
+      const [current] = await tx.select({ stock: rawMaterials.stockGrams }).from(rawMaterials).where(eq(rawMaterials.id, material.id));
+      await applyMovement(tx, {
+        rawMaterialId: material.id, occurredOn: today, kind: "ajuste", grams: target - current.stock,
+        note: "Inventario inicial (archivo)", userId: session.userId,
+      });
+      counted++;
+    }
+  });
+
+  revalidatePath("/", "layout");
+  const parts = [`Listo: ${counted} insumos quedaron con la existencia del archivo (fecha ${today}).`];
+  if (negatives) parts.push(`${negatives} venían en negativo y quedaron en 0.`);
+  if (missing.length) {
+    parts.push(`${missing.length} no los encontré en el catálogo: ${missing.slice(0, 8).join(", ")}${missing.length > 8 ? "…" : ""}.`);
+  }
+  return { ok: parts.join(" ") };
 }

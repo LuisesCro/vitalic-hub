@@ -117,3 +117,51 @@ export function parseVendtyTransactions(bytes: Uint8Array): VendtySaleLine[] {
 export function isSuspiciousCost(unitPriceNet: number, unitCostNet: number): boolean {
   return unitPriceNet > 0 && unitCostNet > unitPriceNet * 2;
 }
+
+/** Cantidad escrita a mano en Colombia: "12,5" es doce y medio y "1.250" es mil doscientos cincuenta. */
+function localNumber(value: unknown): number {
+  if (typeof value === "number") return value;
+  const n = Number(str(value).replace(/\s/g, "").replace(/\./g, "").replace(",", "."));
+  return Number.isFinite(n) ? n : 0;
+}
+
+export type InventoryCountLine = { code: string | null; name: string; grams: number };
+
+/**
+ * Inventario contado de insumos a granel. Acepta la exportación "Existencia de
+ * inventario" de Vendty (filas en gramos de los ingredientes) o una hoja propia
+ * con columnas Insumo/Código y Kg o Gramos.
+ */
+export function parseInventoryCount(bytes: Uint8Array): InventoryCountLine[] {
+  const rows = readRows(bytes);
+  if (rows.length === 0) return [];
+  const headers = Object.keys(rows[0]);
+  const find = (...names: string[]) =>
+    headers.find((h) => names.includes(h.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim()));
+  const codeCol = find("codigo", "sku", "codigo del producto");
+  const nameCol = find("insumo", "producto", "nombre", "nombre del producto");
+  const kgCol = find("kg", "kilos", "kilogramos", "existencia kg");
+  const gramsCol = find("gramos", "g", "gr", "existencia g");
+  const unitsCol = find("unidades", "cantidad", "existencia");
+  const unitCol = find("unidad");
+  if (!nameCol && !codeCol) throw new Error("Falta la columna Insumo o Código");
+
+  const lines: InventoryCountLine[] = [];
+  for (const r of rows) {
+    const code = codeCol ? str(r[codeCol]) || null : null;
+    const name = nameCol ? str(r[nameCol]) : code ?? "";
+    if (!name && !code) continue;
+    let grams: number | null = null;
+    if (kgCol && str(r[kgCol])) grams = localNumber(r[kgCol]) * 1000;
+    else if (gramsCol && str(r[gramsCol])) grams = localNumber(r[gramsCol]);
+    else if (unitsCol && unitCol) {
+      // Vendty: solo los ingredientes se llevan en gramos; las bolsas van en unidades.
+      const unit = str(r[unitCol]).toLowerCase();
+      if (unit.startsWith("gramo")) grams = toNumber(r[unitsCol]);
+      else if (unit.startsWith("kilo")) grams = toNumber(r[unitsCol]) * 1000;
+    }
+    if (grams === null) continue;
+    lines.push({ code, name, grams });
+  }
+  return lines;
+}
