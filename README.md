@@ -48,7 +48,7 @@ npm run dev                 # http://localhost:3000
 
 Luego, en la app: Importar → catálogo de productos de Vendty → ventas (Transacciones).
 
-## Publicar en internet (recomendado: Supabase + Vercel)
+## Publicar en internet (Supabase + Netlify o Vercel)
 
 1. **Base de datos:** crear un proyecto en Supabase. En Project Settings → Database copiar la cadena de
    conexión del pooler (modo transacción, puerto 6543). Esa es `DATABASE_URL`.
@@ -56,10 +56,10 @@ Luego, en la app: Importar → catálogo de productos de Vendty → ventas (Tran
    tablas no quedan expuestas en la API pública de Supabase.
 2. **Tablas:** en Supabase → SQL Editor, pegar y ejecutar `drizzle/0000_init.sql` (o correr
    `npm run db:migrate` con `DATABASE_URL` apuntando a Supabase).
-3. **Aplicación:** importar el repositorio en Vercel y definir las variables `DATABASE_URL`, `AUTH_SECRET`
+3. **Aplicación:** importar el repositorio en Netlify (usa `netlify.toml`) o en Vercel, y definir las variables `DATABASE_URL`, `AUTH_SECRET`
    (texto aleatorio de 32+ caracteres), `SEED_USERS` y `ANTHROPIC_API_KEY`.
 4. **Usuarios:** en el primer ingreso, si la base no tiene usuarios, la app los crea desde `SEED_USERS`.
-   Cada persona cambia su clave en Ajustes; después se puede borrar `SEED_USERS` de Vercel.
+   Cada persona cambia su clave en Ajustes; después se puede borrar `SEED_USERS`.
 
 ## Comandos
 
