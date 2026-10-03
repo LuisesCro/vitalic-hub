@@ -5,6 +5,9 @@ import { cashSessions } from "@/db/schema";
 import { todayISO } from "@/lib/format";
 import { expensesByMonth, monthlySales, productPerformance, rawMaterialConsumption, trackedRawMaterialIds } from "@/lib/reports";
 import { readSession } from "@/lib/session";
+import { ensureSchema } from "@/db/ensure-schema";
+import bcrypt from "bcryptjs";
+import { SignJWT } from "jose";
 import { getSettings } from "@/lib/settings";
 
 // Diagnóstico público: dice en qué paso falla la aplicación sin mostrar claves ni datos del negocio.
@@ -82,7 +85,16 @@ export async function GET() {
           caja: await step(() => db.select().from(cashSessions).where(eq(cashSessions.businessDate, todayISO())).then((r) => r.length)),
         }
       : "inicia sesión en esta misma ventana y vuelve a abrir esta página";
-  const full = { ...report, node: process.version, sesion, inicio };
+  // Pasos del ingreso, cada uno con su tiempo, para ubicar cualquier demora.
+  const ingreso = !conexion.ok ? await skip() : {
+    estructuraAlDia: await step(() => ensureSchema().then(() => "ok")),
+    buscarUsuario: await step(() => db.execute(sql`select id from users order by id limit 1`).then((r) => r.length)),
+    cifrado: await step(() => bcrypt.hash("prueba-de-velocidad", 10).then(() => "ok")),
+    firma: await step(() =>
+      new SignJWT({ prueba: true }).setProtectedHeader({ alg: "HS256" }).sign(new TextEncoder().encode(process.env.AUTH_SECRET ?? "x".repeat(32))).then(() => "ok"),
+    ),
+  };
+  const full = { ...report, node: process.version, sesion, ingreso, inicio };
   return new Response(JSON.stringify(full, null, 2), {
     headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" },
   });

@@ -4,7 +4,6 @@ import { eq } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
-import { ensureSchema } from "@/db/ensure-schema";
 import { users } from "@/db/schema";
 import { isRole, type Role } from "./roles";
 
@@ -48,7 +47,6 @@ export async function readSession(): Promise<Session | null> {
   } catch {
     return null;
   }
-  await ensureSchema();
   const [user] = await db
     .select({ id: users.id, name: users.name, role: users.role, active: users.active })
     .from(users)
