@@ -11,7 +11,7 @@ function getDb(): Db {
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error("Falta la variable DATABASE_URL");
   // prepare: false permite usar el pooler de Supabase (modo transacción).
-  const instance = drizzle(postgres(url, { prepare: false, max: 5, connect_timeout: 15 }), { schema });
+  const instance = drizzle(postgres(url, { prepare: false, max: 5, connect_timeout: 15, idle_timeout: 20 }), { schema });
   globalForDb.vitalicDb = instance;
   return instance;
 }

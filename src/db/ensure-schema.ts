@@ -45,13 +45,27 @@ const STATEMENTS = [
   sql`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "active" boolean DEFAULT true NOT NULL`,
 ];
 
+/** Revisión de solo lectura: ¿ya está todo? Así casi nunca se toca la estructura. */
+async function upToDate(): Promise<boolean> {
+  const rows = await db.execute<{ n: string }>(sql`
+    select (select count(*) from information_schema.columns
+             where table_schema = 'public' and table_name = 'users' and column_name in ('role', 'active'))
+         + (select count(*) from information_schema.tables
+             where table_schema = 'public' and table_name in ('cash_sessions', 'cash_movements')) as n`);
+  return Number(rows[0]?.n) === 4;
+}
+
 let ready: Promise<void> | null = null;
 
 /** Una vez por servidor; si falla, se reintenta en la siguiente visita. */
 export function ensureSchema(): Promise<void> {
   ready ??= (async () => {
-    // El candado evita que dos servidores que arrancan a la vez choquen al crear tablas.
+    if (await upToDate()) return;
     await db.transaction(async (tx) => {
+      // Nunca quedarse esperando: si algo tiene la tabla ocupada, falla rápido y se reintenta luego.
+      await tx.execute(sql`set local lock_timeout = '4s'`);
+      await tx.execute(sql`set local statement_timeout = '15s'`);
+      // El candado evita que dos servidores que arrancan a la vez choquen al crear tablas.
       await tx.execute(sql`select pg_advisory_xact_lock(732451)`);
       for (const statement of STATEMENTS) await tx.execute(statement);
     });
