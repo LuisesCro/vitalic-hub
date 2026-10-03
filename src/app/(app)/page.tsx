@@ -22,14 +22,20 @@ const fmtToday = () =>
 
 export default async function InicioPage() {
   const session = await requireAdmin();
-  const [months, exp, perf, consumption, materials, [pending], s, tracked, [cash]] = await Promise.all([
-    monthlySales(), expensesByMonth(), productPerformance(90), rawMaterialConsumption(90),
-    db.select().from(rawMaterials).where(eq(rawMaterials.active, true)),
-    db.select({ n: count() }).from(purchases).where(eq(purchases.status, "borrador")),
-    getSettings(),
-    trackedRawMaterialIds(),
-    db.select({ status: cashSessions.status, opening: cashSessions.openingCash }).from(cashSessions).where(eq(cashSessions.businessDate, todayISO())),
-  ]);
+  // Una consulta a la vez: en Netlify con el pooler de Supabase, nueve consultas
+  // simultáneas dejaban la página colgada. En serie tardan unos 60 ms en total.
+  const months = await monthlySales();
+  const exp = await expensesByMonth();
+  const perf = await productPerformance(90);
+  const consumption = await rawMaterialConsumption(90);
+  const materials = await db.select().from(rawMaterials).where(eq(rawMaterials.active, true));
+  const [pending] = await db.select({ n: count() }).from(purchases).where(eq(purchases.status, "borrador"));
+  const s = await getSettings();
+  const tracked = await trackedRawMaterialIds();
+  const [cash] = await db
+    .select({ status: cashSessions.status, opening: cashSessions.openingCash })
+    .from(cashSessions)
+    .where(eq(cashSessions.businessDate, todayISO()));
 
   const thisMonth = todayISO().slice(0, 7);
   const closed = months.filter((m) => m.month < thisMonth && m.invoices > 100).slice(-6); // meses completos recientes
