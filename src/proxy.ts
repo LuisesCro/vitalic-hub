@@ -1,22 +1,13 @@
-import { jwtVerify } from "jose";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { cashierCanOpen } from "@/lib/roles";
 
-// Revisión rápida en cada visita: sin sesión válida, al login; una cajera solo
-// navega por Caja y su clave. La verificación completa (usuario activo, rol
-// vigente) ocurre en cada página y acción con requireSession() / requireAdmin().
-export async function proxy(request: NextRequest) {
-  const token = request.cookies.get("vitalic_session")?.value;
-  const toLogin = () => NextResponse.redirect(new URL("/login", request.url));
-  if (!token) return toLogin();
-  try {
-    const { payload } = await jwtVerify(token, new TextEncoder().encode(process.env.AUTH_SECRET ?? ""));
-    if (payload.role === "cajera" && !cashierCanOpen(request.nextUrl.pathname)) {
-      return NextResponse.redirect(new URL("/caja", request.url));
-    }
-  } catch {
-    return toLogin();
+// Revisión mínima y sin dependencias (Netlify la ejecuta en su red de borde, donde
+// librerías como la de firmas pueden quedarse colgadas): sin cookie de sesión, al login.
+// La verificación real (firma, usuario activo, rol de cajera) ocurre en el servidor
+// en cada página y acción con requireSession() / requireAdmin().
+export function proxy(request: NextRequest) {
+  if (!request.cookies.has("vitalic_session")) {
+    return NextResponse.redirect(new URL("/login", request.url));
   }
   return NextResponse.next();
 }
