@@ -1,5 +1,11 @@
 import { sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { db } from "@/db";
+import { cashSessions } from "@/db/schema";
+import { todayISO } from "@/lib/format";
+import { expensesByMonth, monthlySales, productPerformance, rawMaterialConsumption, trackedRawMaterialIds } from "@/lib/reports";
+import { readSession } from "@/lib/session";
+import { getSettings } from "@/lib/settings";
 
 // Diagnóstico público: dice en qué paso falla la aplicación sin mostrar claves ni datos del negocio.
 export const dynamic = "force-dynamic";
@@ -62,7 +68,22 @@ export async function GET() {
     usuarios: !conexion.ok ? await skip() : await step(() => db.execute<{ n: string }>(sql`select count(*) as n from users`).then((r) => Number(r[0]?.n))),
     ventas: !conexion.ok ? await skip() : await step(() => db.execute<{ n: string }>(sql`select count(*) as n from sale_lines`).then((r) => Number(r[0]?.n))),
   };
-  return new Response(JSON.stringify(report, null, 2), {
+  // Si quien abre el diagnóstico tiene sesión, se repite paso a paso lo que hace Inicio.
+  const sesion = conexion.ok ? await step(() => readSession().then((s) => (s ? { nombre: s.name, rol: s.role } : "sin sesión"))) : await skip();
+  const inicio =
+    "value" in sesion && typeof sesion.value === "object"
+      ? {
+          ventasMes: await step(() => monthlySales().then((r) => r.length)),
+          gastos: await step(() => expensesByMonth().then((r) => r.size)),
+          productos: await step(() => productPerformance(90).then((r) => r.length)),
+          consumo: await step(() => rawMaterialConsumption(90).then((r) => r.size)),
+          conteos: await step(() => trackedRawMaterialIds().then((r) => r.size)),
+          ajustes: await step(() => getSettings().then(() => "ok")),
+          caja: await step(() => db.select().from(cashSessions).where(eq(cashSessions.businessDate, todayISO())).then((r) => r.length)),
+        }
+      : "inicia sesión en esta misma ventana y vuelve a abrir esta página";
+  const full = { ...report, node: process.version, sesion, inicio };
+  return new Response(JSON.stringify(full, null, 2), {
     headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" },
   });
 }

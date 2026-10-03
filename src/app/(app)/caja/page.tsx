@@ -56,7 +56,8 @@ export default async function CajaPage({ searchParams }: { searchParams: Promise
     ? await db.select({ sessionId: cashMovements.sessionId, kind: cashMovements.kind, amount: cashMovements.amount })
         .from(cashMovements).where(inArray(cashMovements.sessionId, historyIds))
     : [];
-  const movementsBySession = Map.groupBy(allMovements, (m) => m.sessionId);
+  const movementsBySession = new Map<number, typeof allMovements>();
+  for (const m of allMovements) movementsBySession.set(m.sessionId, [...(movementsBySession.get(m.sessionId) ?? []), m]);
   const lastClosed = history.find((h) => h.status === "cerrada" && h.businessDate < date);
 
   const month = today.slice(0, 7);
