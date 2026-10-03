@@ -41,7 +41,7 @@ export async function GET() {
   // Sin conexión no vale la pena seguir: cada paso esperaría hasta agotar el tiempo.
   const skip = async () => ({ ok: false, ms: 0, error: "no se intentó: falló la conexión" });
   const report = {
-    version: process.env.COMMIT_REF?.slice(0, 7) ?? "local",
+    version: process.env.BUILD_COMMIT ?? "local",
     variables: {
       DATABASE_URL: describeUrl(process.env.DATABASE_URL),
       AUTH_SECRET: process.env.AUTH_SECRET ? (process.env.AUTH_SECRET.length >= 32 ? "ok" : "MUY CORTA") : "FALTA",

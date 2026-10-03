@@ -113,6 +113,7 @@ export function AppShell({
                 <li key={item.href}>
                   <Link
                     href={item.href}
+                    prefetch={false}
                     className={`flex items-center gap-3 rounded-xl px-3 py-2 text-[15px] transition-colors ${
                       active ? "bg-brand-600 font-medium text-white shadow-sm" : "text-[var(--text)] hover:bg-[var(--surface-2)]"
                     }`}
@@ -156,7 +157,7 @@ export function AppShell({
             const Icon = item.icon;
             return (
               <li key={item.href} className="flex-1">
-                <Link href={item.href} className={`flex flex-col items-center gap-0.5 py-2 text-[11px] ${active ? "font-semibold text-brand-600 dark:text-brand-500" : "text-muted"}`}>
+                <Link href={item.href} prefetch={false} className={`flex flex-col items-center gap-0.5 py-2 text-[11px] ${active ? "font-semibold text-brand-600 dark:text-brand-500" : "text-muted"}`}>
                   <Icon className="size-6" />
                   {item.label}
                 </Link>
