@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
@@ -27,22 +27,27 @@ async function organizePending(): Promise<number> {
   if (pending.length === 0) return 0;
   const families = await db.select({ id: productFamilies.id, name: productFamilies.name }).from(productFamilies);
   const byKey = new Map(families.map((f) => [normalize(f.name), f.id]));
+  // Las familias guardadas con tildes o mayúsculas distintas se reconocen igual.
+  // Primero crea las familias que faltan (una sentencia), luego asigna todas las presentaciones (otra).
+  const missing = new Map<string, { name: string; category: string | null; ivaRate: number }>();
   for (const p of pending) {
-    const name = familyNameOf(p.name) || p.name;
     const key = familyKey(p.name) || normalize(p.name);
-    let familyId = byKey.get(key);
-    if (!familyId) {
-      const [created] = await db
-        .insert(productFamilies)
-        .values({ name, category: p.category, ivaRate: p.ivaRate })
-        .onConflictDoNothing()
-        .returning({ id: productFamilies.id });
-      familyId = created?.id ?? (await db.select({ id: productFamilies.id }).from(productFamilies).where(eq(productFamilies.name, name)))[0]?.id;
-      if (!familyId) continue;
-      byKey.set(key, familyId);
-    }
-    const priceGross = p.priceNet * (1 + p.ivaRate);
-    await db.update(products).set({ familyId, format: detectFormat(priceGross, p.grams) }).where(eq(products.id, p.id));
+    if (!byKey.has(key) && !missing.has(key)) missing.set(key, { name: familyNameOf(p.name) || p.name, category: p.category, ivaRate: p.ivaRate });
+  }
+  if (missing.size) {
+    const created = await db.insert(productFamilies).values([...missing.values()]).onConflictDoNothing().returning({ id: productFamilies.id, name: productFamilies.name });
+    for (const f of created) byKey.set(normalize(f.name), f.id);
+    const again = await db.select({ id: productFamilies.id, name: productFamilies.name }).from(productFamilies);
+    for (const f of again) if (!byKey.has(normalize(f.name))) byKey.set(normalize(f.name), f.id);
+  }
+  const assign = pending
+    .map((p) => ({ id: p.id, family: byKey.get(familyKey(p.name) || normalize(p.name)) ?? null, format: detectFormat(p.priceNet * (1 + p.ivaRate), p.grams) }))
+    .filter((a) => a.family !== null);
+  if (assign.length) {
+    await db.execute(sql`
+      update products p set family_id = v.family, format = v.format
+      from jsonb_to_recordset(${JSON.stringify(assign)}::jsonb) as v(id int, family int, format text)
+      where p.id = v.id`);
   }
   return pending.length;
 }
@@ -64,9 +69,9 @@ export async function importVendtyRecipes(_prev: CatalogState, formData: FormDat
   ]);
   const productByName = new Map(own.map((p) => [normalize(p.name), p.id]));
   const materialByName = new Map(materials.map((m) => [normalize(m.name), m.id]));
-  let applied = 0;
   const missingProducts: string[] = [];
   const missingIngredients = new Set<string>();
+  const recipes = new Map<number, { rawMaterialId: number; grams: number }[]>();
   for (const c of compounds) {
     const productId = productByName.get(normalize(c.name));
     if (!productId) {
@@ -76,23 +81,32 @@ export async function importVendtyRecipes(_prev: CatalogState, formData: FormDat
     const comps: { rawMaterialId: number; grams: number }[] = [];
     for (const part of c.components) {
       const id = materialByName.get(normalize(part.ingredient)) ?? matchRawMaterial(part.ingredient, materials)?.id;
-      if (!id) missingIngredients.add(part.ingredient);
-      else {
-        const same = comps.find((x) => x.rawMaterialId === id);
-        if (same) same.grams += part.grams;
-        else comps.push({ rawMaterialId: id, grams: part.grams });
+      if (!id) {
+        missingIngredients.add(part.ingredient);
+        continue;
       }
+      const same = comps.find((x) => x.rawMaterialId === id);
+      if (same) same.grams += part.grams;
+      else comps.push({ rawMaterialId: id, grams: part.grams });
     }
-    if (comps.length !== c.components.length && comps.length === 0) continue;
+    if (comps.length) recipes.set(productId, comps);
+  }
+  const applied = recipes.size;
+  if (applied) {
+    // Todo en pocas sentencias: en Netlify cada ida y vuelta a la base cuenta contra el límite de tiempo.
+    const ids = [...recipes.keys()];
+    const rows = [...recipes].flatMap(([productId, comps]) => comps.map((x) => ({ productId, ...x })));
+    const summary = [...recipes].map(([id, comps]) => ({
+      id, grams: comps.reduce((t, x) => t + x.grams, 0), raw: comps.length === 1 ? comps[0].rawMaterialId : null,
+    }));
     await db.transaction(async (tx) => {
-      await tx.delete(productComponents).where(eq(productComponents.productId, productId));
-      await tx.insert(productComponents).values(comps.map((x) => ({ productId, ...x })));
-      await tx
-        .update(products)
-        .set({ grams: comps.reduce((t, x) => t + x.grams, 0), rawMaterialId: comps.length === 1 ? comps[0].rawMaterialId : null })
-        .where(eq(products.id, productId));
+      await tx.delete(productComponents).where(inArray(productComponents.productId, ids));
+      for (let i = 0; i < rows.length; i += 500) await tx.insert(productComponents).values(rows.slice(i, i + 500));
+      await tx.execute(sql`
+        update products p set grams = v.grams, raw_material_id = v.raw
+        from jsonb_to_recordset(${JSON.stringify(summary)}::jsonb) as v(id int, grams numeric, raw int)
+        where p.id = v.id`);
     });
-    applied++;
   }
   await organizePending();
   refresh();
