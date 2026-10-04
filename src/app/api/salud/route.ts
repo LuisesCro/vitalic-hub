@@ -48,7 +48,8 @@ function describeUrl(raw: string | undefined) {
 export async function GET(request: Request) {
   // ?ligero=1 lo usa la tarea que mantiene el servidor encendido: solo despierta la conexión.
   if (new URL(request.url).searchParams.has("ligero")) {
-    await db.execute(sql`select 1`);
+    // También aplica cambios de estructura pendientes tras publicar una versión nueva.
+    await ensureSchema();
     return new Response("ok", { headers: { "cache-control": "no-store" } });
   }
   const conexion = await step(() => db.execute(sql`select 1`).then(() => "ok"));
