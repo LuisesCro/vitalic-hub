@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { quoteBulk, tierFor } from "@/lib/bulk";
+import { profitOf, quoteBulk, tierFor } from "@/lib/bulk";
 import { DEFAULT_SETTINGS } from "@/lib/settings-defaults";
 
 const s = { ...DEFAULT_SETTINGS };
@@ -36,5 +36,15 @@ describe("cotización por kilo y bulto", () => {
 
   it("sin costo no cotiza", () => {
     expect(quoteBulk({ kg: 3, costPerKg: 0, ivaRate: 0, retailPerKg: null, settings: s })).toBeNull();
+  });
+});
+
+describe("utilidad", () => {
+  it("bulto de chía: $595.000 con IVA 19 % y costo $15.200/kg", () => {
+    const u = profitOf(595000, 0.19, 15200 * 25);
+    expect(u.net).toBeCloseTo(500000, 0);
+    expect(u.profit).toBeCloseTo(120000, 0);
+    expect(u.margin).toBeCloseTo(0.24, 3);
+    expect(u.markup).toBeCloseTo(0.3158, 3);
   });
 });

@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useMemo, useState } from "react";
-import { tierFor } from "@/lib/bulk";
+import { profitOf, tierFor } from "@/lib/bulk";
 import { fmtCOP, fmtPct } from "@/lib/format";
 import type { Settings } from "@/lib/settings-defaults";
 import { registerBulkSale, type BulkState } from "./actions";
@@ -110,10 +110,16 @@ export function QuoteTool({ items, settings, isAdmin }: { items: QuoteItem[]; se
               {shortStock && <span style={{ color: "var(--bad)" }}> · no alcanza para {kg} kg</span>}
             </p>
             {isAdmin && picked.costPerKg !== undefined && (
-              <p className="text-xs text-muted sm:col-span-2">
-                Solo administradores: costo {fmtCOP(picked.costPerKg)}/kg sin IVA · margen de este nivel {fmtPct(quote.margin)}
-                {quote.cappedByRetail ? " · ajustado para no superar el precio en bolsas" : ""}
-              </p>
+              <ProfitTable
+                rows={[
+                  { label: "Precio sugerido", gross: quote.total },
+                  ...(total && finalTotal !== quote.total ? [{ label: "Precio que escribiste", gross: finalTotal }] : []),
+                  { label: "Precio mínimo", gross: quote.floorTotal },
+                ]}
+                ivaRate={picked.ivaRate}
+                cost={picked.costPerKg * kg}
+                note={`Costo ${fmtCOP(picked.costPerKg)}/kg sin IVA × ${kg.toLocaleString("es-CO")} kg${quote.cappedByRetail ? " · precio ajustado para no superar el de bolsas" : ""}`}
+              />
             )}
           </div>
 
@@ -150,6 +156,35 @@ export function QuoteTool({ items, settings, isAdmin }: { items: QuoteItem[]; se
 
       {state.ok && <p className="rounded-lg px-3 py-2 text-sm" style={{ background: "var(--good-bg)", color: "var(--good)" }}>{state.ok}</p>}
       {state.error && <p className="rounded-lg px-3 py-2 text-sm" style={{ background: "var(--bad-bg)", color: "var(--bad)" }}>{state.error}</p>}
+    </div>
+  );
+}
+
+/** Solo administradores: cuánto queda de cada precio después de IVA y costo. */
+function ProfitTable({ rows, ivaRate, cost, note }: { rows: { label: string; gross: number }[]; ivaRate: number; cost: number; note: string }) {
+  return (
+    <div className="overflow-x-auto rounded-xl border border-[var(--border)] sm:col-span-2">
+      <table className="table-base">
+        <thead>
+          <tr><th>Utilidad (solo administradores)</th><th className="text-right">Venta sin IVA</th><th className="text-right">Costo</th><th className="text-right">Utilidad</th><th className="text-right">Margen</th><th className="text-right">Sobre costo</th></tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => {
+            const u = profitOf(r.gross, ivaRate, cost);
+            return (
+              <tr key={r.label}>
+                <td>{r.label} <span className="text-muted">({fmtCOP(r.gross)})</span></td>
+                <td className="text-right">{fmtCOP(u.net)}</td>
+                <td className="text-right">{fmtCOP(u.cost)}</td>
+                <td className="text-right font-semibold" style={{ color: u.profit < 0 ? "var(--bad)" : "var(--good)" }}>{fmtCOP(u.profit)}</td>
+                <td className="text-right font-semibold">{fmtPct(u.margin)}</td>
+                <td className="text-right">{fmtPct(u.markup)}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      <p className="px-3 pb-2 text-xs text-muted">{note}. Margen = utilidad ÷ venta sin IVA; sobre costo = utilidad ÷ costo.</p>
     </div>
   );
 }

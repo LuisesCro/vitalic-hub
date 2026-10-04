@@ -1,21 +1,30 @@
 @import "tailwindcss";
 
+/* Colores oficiales de Vitalic (manual de marca): turquesa #2BA1B8, verde #C2CF5C,
+   morado #714E89 y gris #B5B5B5. Los botones usan un turquesa más oscuro (#1C7A8C)
+   para que el texto blanco se lea bien. */
 @theme {
-  --color-brand-50: #eef9fb;
-  --color-brand-100: #d3eff4;
-  --color-brand-200: #a8dfe8;
-  --color-brand-500: #1fa3b5;
-  --color-brand-600: #178a9a;
-  --color-brand-700: #136f7c;
-  --color-brand-800: #0f5560;
-  --color-leaf-100: #eef5d6;
-  --color-leaf-500: #a5c240;
-  --color-leaf-600: #8aa431;
+  --color-brand-50: #eaf6f8;
+  --color-brand-100: #d2edf2;
+  --color-brand-200: #a6dbe5;
+  --color-brand-500: #2ba1b8;
+  --color-brand-600: #1c7a8c;
+  --color-brand-700: #186878;
+  --color-brand-800: #11505c;
+  --color-leaf-100: #f1f5d9;
+  --color-leaf-500: #c2cf5c;
+  --color-leaf-600: #a9b746;
+  --color-leaf-800: #5e6e1f;
+  --color-plum-100: #efe8f4;
+  --color-plum-500: #714e89;
+  --color-plum-700: #573b6a;
+  --color-stone-400: #b5b5b5;
   --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-brand: "Quicksand", ui-rounded, ui-sans-serif, system-ui, sans-serif;
 }
 
 :root {
-  --bg: #f3f6f4;
+  --bg: #f3f7f6;
   --surface: #ffffff;
   --surface-2: #eef3f1;
   --text: #15201f;
@@ -57,8 +66,11 @@ body {
 }
 
 /* Títulos y textos de cada página con el mismo estilo, sin tocar cada pantalla. */
+main h1, main h2, main h3 {
+  font-family: var(--font-brand);
+}
 main h1 {
-  font-size: 1.6rem;
+  font-size: 1.65rem;
   line-height: 1.2;
   font-weight: 700;
   letter-spacing: -0.02em;
@@ -102,7 +114,7 @@ main > div > h1 + p {
   &:focus {
     outline: none;
     border-color: var(--color-brand-500);
-    box-shadow: 0 0 0 3px rgb(31 163 181 / 0.18);
+    box-shadow: 0 0 0 3px rgb(43 161 184 / 0.2);
   }
   &:disabled { opacity: 0.6; }
   &[type="file"] { padding: 0.45rem; font-size: 0.9rem; }
@@ -128,7 +140,9 @@ main > div > h1 + p {
   font-weight: 600;
   color: white;
   background: var(--color-brand-600);
-  box-shadow: 0 1px 2px rgb(19 111 124 / 0.25);
+  font-family: var(--font-brand);
+  font-weight: 700;
+  box-shadow: 0 1px 2px rgb(28 122 140 / 0.3);
   transition: background 0.15s, transform 0.05s;
   cursor: pointer;
   &:hover { background: var(--color-brand-700); }

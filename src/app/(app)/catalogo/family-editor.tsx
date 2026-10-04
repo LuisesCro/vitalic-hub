@@ -266,7 +266,10 @@ export function FamilyEditor({
               </div>
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
                 <span>Costo: <strong>{fmtCOP(ev.cost)}</strong></span>
-                <span>Margen: <strong style={{ color: tone }}>{ev.margin === null ? "—" : fmtPct(ev.margin)}</strong></span>
+                <span>
+                  Utilidad: <strong style={{ color: tone }}>{ev.cost === null || !num(p.priceGross) ? "—" : fmtCOP(num(p.priceGross) / (1 + iva) - ev.cost)}</strong>
+                  {" "}({ev.margin === null ? "—" : fmtPct(ev.margin)})
+                </span>
                 {ev.suggested && p.format !== "papeleta" && num(p.priceGross) !== ev.suggested && (
                   <button type="button" onClick={() => update(p.key, { priceGross: String(ev.suggested) })} className="text-brand-700 underline dark:text-brand-500">
                     Usar {fmtCOP(ev.suggested)} (margen {fmtPct(settings.margenMinimo)})

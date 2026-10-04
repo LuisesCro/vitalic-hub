@@ -28,11 +28,14 @@ export const IconTrendUp = ({ className }: P) => <svg {...base(className)}><path
 export const IconTrendDown = ({ className }: P) => <svg {...base(className)}><path d="m3 7 6 6 4-4 8 8" /><path d="M15 17h6v-6" /></svg>;
 export const IconUsers = ({ className }: P) => <svg {...base(className)}><circle cx="9" cy="8" r="3.5" /><path d="M2.5 20a6.5 6.5 0 0 1 13 0" /><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14a6 6 0 0 1 3.5 6" /></svg>;
 
+/** Ícono oficial de Vitalic (espiga en cuadro turquesa). */
 export function Logo({ className = "size-9" }: P) {
-  return (
-    <svg viewBox="0 0 64 64" className={className} aria-hidden>
-      <rect width="64" height="64" rx="16" fill="#178a9a" />
-      <path d="M32 50V24M32 36c-8 0-12-6-12-12 8 0 12 6 12 12zm0 0c8 0 12-6 12-12-8 0-12 6-12 12zm0-12c-5-3-5-10 0-14 5 4 5 11 0 14z" fill="none" stroke="#e6f3c4" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src="/brand/vitalic-icono.svg" alt="" className={className} />;
+}
+
+/** Logo horizontal oficial: ícono + "vitalic". Variante blanca para fondos turquesa. */
+export function BrandLogo({ className = "h-8 w-auto", white = false }: P & { white?: boolean }) {
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src={white ? "/brand/vitalic-horizontal-blanco.svg" : "/brand/vitalic-horizontal.svg"} alt="Vitalic" className={className} />;
 }

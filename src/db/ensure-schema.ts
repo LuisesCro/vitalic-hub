@@ -65,6 +65,8 @@ const STATEMENTS = [
   sql`ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "format" text DEFAULT 'bolsa' NOT NULL`,
   sql`CREATE INDEX IF NOT EXISTS "products_family_idx" ON "products" ("family_id")`,
   sql`ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "paused_by_family" boolean DEFAULT false NOT NULL`,
+  // 0005_breb
+  sql`ALTER TABLE "cash_sessions" ADD COLUMN IF NOT EXISTS "sales_breb" numeric(14, 2) DEFAULT 0 NOT NULL`,
   // 0004_granel
   sql`CREATE TABLE IF NOT EXISTS "bulk_sales" (
     "id" serial PRIMARY KEY NOT NULL,
@@ -85,10 +87,11 @@ async function upToDate(): Promise<boolean> {
     select (select count(*) from information_schema.columns
              where table_schema = 'public' and (
                (table_name = 'users' and column_name in ('role', 'active')) or
-               (table_name = 'products' and column_name in ('family_id', 'format', 'paused_by_family'))))
+               (table_name = 'products' and column_name in ('family_id', 'format', 'paused_by_family')) or
+               (table_name = 'cash_sessions' and column_name = 'sales_breb')))
          + (select count(*) from information_schema.tables
              where table_schema = 'public' and table_name in ('cash_sessions', 'cash_movements', 'product_families', 'product_components', 'bulk_sales')) as n`);
-  return Number(rows[0]?.n) === 10;
+  return Number(rows[0]?.n) === 11;
 }
 
 let ready: Promise<void> | null = null;

@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   IconBag, IconBox, IconLayers, IconScale, IconCash, IconChart, IconHome, IconKey, IconLeaf, IconLogout, IconMenu, IconReceipt,
-  IconSettings, IconTag, IconUpload, IconX, Logo,
+  IconSettings, IconTag, IconUpload, IconX, BrandLogo,
 } from "./icons";
 
 type Item = { href: string; label: string; icon: (p: { className?: string }) => React.ReactNode; hint?: string };
@@ -85,19 +85,16 @@ export function AppShell({
   const current = all.find((i) => isActive(path, i.href));
 
   const Brand = (
-    <Link href={role === "admin" ? "/" : "/caja"} className="flex items-center gap-2.5">
-      <Logo className="size-9" />
-      <span className="leading-tight">
-        <span className="block font-semibold tracking-tight">Vitalic Hub</span>
-        <span className="block text-xs text-muted">Alameda · Cali</span>
-      </span>
+    <Link href={role === "admin" ? "/" : "/caja"} className="flex items-end gap-2" aria-label="Vitalic Hub, inicio">
+      <BrandLogo className="h-8 w-auto" />
+      <span className="mb-0.5 rounded-md bg-leaf-500 px-1.5 py-0.5 font-[family-name:var(--font-brand)] text-[11px] font-bold leading-none text-leaf-800">HUB</span>
     </Link>
   );
 
   const UserBox = (
     <div className="flex items-center justify-between gap-2 rounded-xl bg-[var(--surface-2)] p-2.5">
       <div className="flex min-w-0 items-center gap-2">
-        <span className="grid size-8 shrink-0 place-items-center rounded-full bg-brand-600 text-sm font-semibold text-white">
+        <span className="grid size-8 shrink-0 place-items-center rounded-full bg-plum-500 text-sm font-semibold text-white">
           {name.slice(0, 1).toUpperCase()}
         </span>
         <span className="min-w-0">
@@ -117,7 +114,7 @@ export function AppShell({
     <nav className="space-y-5">
       {groups.map((g) => (
         <div key={g.title}>
-          <p className="mb-1.5 px-3 text-[11px] font-semibold uppercase tracking-wider text-muted">{g.title}</p>
+          <p className="mb-1.5 px-3 font-[family-name:var(--font-brand)] text-[11px] font-bold uppercase tracking-wider text-muted">{g.title}</p>
           <ul className="space-y-0.5">
             {g.items.map((item) => {
               const active = isActive(path, item.href);

@@ -112,3 +112,12 @@ export async function reopenCash(formData: FormData) {
   await db.update(cashSessions).set({ status: "abierta", closedAt: null, closedBy: null }).where(eq(cashSessions.id, id));
   refresh();
 }
+
+/** Borra una caja completa con sus movimientos (por ejemplo, una prueba). Solo administradores. */
+export async function deleteCash(formData: FormData) {
+  await requireAdmin();
+  const id = Number(formData.get("id"));
+  await db.delete(cashSessions).where(eq(cashSessions.id, id)); // los movimientos se borran en cascada
+  refresh();
+  redirect("/caja");
+}

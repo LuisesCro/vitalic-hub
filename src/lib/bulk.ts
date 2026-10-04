@@ -53,3 +53,10 @@ export function quoteBulk(opts: {
     retailTotal, savings: retailTotal ? 1 - total / retailTotal : null, cappedByRetail: capped,
   };
 }
+
+/** Utilidad de una venta: sobre el precio sin IVA y frente al costo (lo que el dueño ve en pesos y en %). */
+export function profitOf(totalGross: number, ivaRate: number, cost: number) {
+  const net = totalGross / (1 + ivaRate);
+  const profit = net - cost;
+  return { net, cost, profit, margin: net > 0 ? profit / net : 0, markup: cost > 0 ? profit / cost : 0 };
+}

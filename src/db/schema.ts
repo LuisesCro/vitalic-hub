@@ -251,6 +251,7 @@ export const cashSessions = pgTable("cash_sessions", {
   salesCard: money("sales_card").notNull().default(0),
   salesNequi: money("sales_nequi").notNull().default(0),
   salesDaviplata: money("sales_daviplata").notNull().default(0),
+  salesBreb: money("sales_breb").notNull().default(0), // llaves Bre-B
   salesTransfer: money("sales_transfer").notNull().default(0),
   salesOther: money("sales_other").notNull().default(0),
   countedCash: money("counted_cash"),

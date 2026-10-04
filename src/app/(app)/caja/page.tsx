@@ -9,7 +9,7 @@ import {
 import { fmtCOP, todayISO } from "@/lib/format";
 import { requireSession } from "@/lib/session";
 import { CloseForm } from "./close-form";
-import { addCashMovement, deleteCashMovement, openCash, reopenCash } from "./actions";
+import { addCashMovement, deleteCash, deleteCashMovement, openCash, reopenCash } from "./actions";
 
 export const metadata = { title: "Caja · Vitalic Hub" };
 
@@ -101,6 +101,16 @@ export default async function CajaPage({ searchParams }: { searchParams: Promise
       {current && (
         <>
           <section className="card space-y-2">
+            {session.role === "admin" && (
+              <details className="float-right text-sm">
+                <summary className="cursor-pointer text-muted underline">Borrar esta caja</summary>
+                <form action={deleteCash} className="mt-2 space-y-2 rounded-lg p-3" style={{ background: "var(--bad-bg)" }}>
+                  <input type="hidden" name="id" value={current.id} />
+                  <p>Se borra la apertura, los movimientos y el cierre de este día. Úsalo solo para pruebas o errores.</p>
+                  <button className="btn-secondary" style={{ color: "var(--bad)" }}>Sí, borrar la caja del {current.businessDate}</button>
+                </form>
+              </details>
+            )}
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h2 className="font-semibold">
                 Caja {current.status === "abierta" ? <span className="text-green-700 dark:text-green-400">abierta</span> : "cerrada"}

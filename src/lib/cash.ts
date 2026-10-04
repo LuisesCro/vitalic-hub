@@ -7,6 +7,7 @@ export const PAYMENT_METHODS = [
   { key: "salesCard", label: "Tarjetas (datáfono)" },
   { key: "salesNequi", label: "Nequi" },
   { key: "salesDaviplata", label: "Daviplata" },
+  { key: "salesBreb", label: "Llave / Bre-B" },
   { key: "salesTransfer", label: "Transferencia" },
   { key: "salesOther", label: "Otros" },
 ] as const;
@@ -63,6 +64,7 @@ export function vendtyMethodKey(method: string | null): PaymentKey | null {
   if (m.startsWith("tarjeta")) return "salesCard";
   if (m === "nequi") return "salesNequi";
   if (m === "daviplata") return "salesDaviplata";
+  if (m.includes("bre-b") || m.includes("breb") || m.includes("bre b") || m.includes("llave")) return "salesBreb";
   if (m.includes("transfer") || m.includes("bancolombia")) return "salesTransfer";
   return "salesOther";
 }

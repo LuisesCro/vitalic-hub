@@ -6,6 +6,7 @@ import { cache } from "react";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
 import { users } from "@/db/schema";
+import { ensureSchema } from "@/db/ensure-schema";
 import { isRole, type Role } from "./roles";
 
 const COOKIE = "vitalic_session";
@@ -49,6 +50,8 @@ export const readSession = cache(async function readSession(): Promise<Session |
   } catch {
     return null;
   }
+  // Una sola vez por servidor: aplica columnas nuevas antes de cualquier consulta de la página.
+  await ensureSchema();
   const [user] = await db
     .select({ id: users.id, name: users.name, role: users.role, active: users.active })
     .from(users)

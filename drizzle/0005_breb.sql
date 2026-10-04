@@ -1,0 +1,1 @@
+ALTER TABLE "cash_sessions" ADD COLUMN "sales_breb" numeric(14, 2) DEFAULT 0 NOT NULL;

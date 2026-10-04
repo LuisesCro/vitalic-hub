@@ -112,12 +112,14 @@ export default async function CatalogoPage({ searchParams }: { searchParams: Pro
                 {pres.map((p) => {
                   const gross = Math.round(p.priceNet * (1 + p.ivaRate));
                   const comps = (recipes.get(p.id) ?? []).map((c) => ({ grams: c.grams, costPerKg: matById.get(c.rawMaterialId)?.cost ?? null }));
-                  const m = marginOf(gross, p.ivaRate, unitCostFromComponents(p, comps, s));
+                  const cost = unitCostFromComponents(p, comps, s);
+                  const m = marginOf(gross, p.ivaRate, cost);
+                  const profit = cost === null ? null : gross / (1 + p.ivaRate) - cost;
                   const color = m === null ? "var(--muted)" : m < s.margenMinimo ? "var(--bad)" : "var(--good)";
                   return (
                     <span key={p.id} className={`rounded-lg border border-[var(--border)] px-2 py-1 text-xs tabular-nums ${p.active ? "" : "opacity-50 line-through"}`}>
                       {p.format === "papeleta" ? "Papeleta " : p.format === "unidad" ? `${FORMATS[p.format as Format]} ` : ""}
-                      {p.format !== "unidad" && fmtGrams(p.grams)} · {fmtCOP(gross)} · <span style={{ color }}>{m === null ? "sin costo" : fmtPct(m)}</span>
+                      {p.format !== "unidad" && fmtGrams(p.grams)} · {fmtCOP(gross)} · <span style={{ color }}>{m === null ? "sin costo" : `gana ${fmtCOP(profit)} (${fmtPct(m)})`}</span>
                     </span>
                   );
                 })}

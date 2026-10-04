@@ -23,7 +23,7 @@ describe("cuadre de caja", () => {
   });
 
   it("suma ventas de todos los medios", () => {
-    expect(totalSales({ salesCash: 1, salesCard: 2, salesNequi: 3, salesDaviplata: 4, salesTransfer: 5, salesOther: 6 })).toBe(21);
+    expect(totalSales({ salesCash: 1, salesCard: 2, salesNequi: 3, salesDaviplata: 4, salesBreb: 7, salesTransfer: 5, salesOther: 6 })).toBe(28);
   });
 
   it("lleva las formas de pago de Vendty al cuadre", () => {
@@ -33,6 +33,7 @@ describe("cuadre de caja", () => {
     expect(vendtyMethodKey("Nequi")).toBe("salesNequi");
     expect(vendtyMethodKey("efectivo,Nequi")).toBeNull();
     expect(vendtyMethodKey(null)).toBeNull();
+    expect(vendtyMethodKey("Llave Bre-B")).toBe("salesBreb");
   });
 
   it("lee montos escritos con puntos", () => {
