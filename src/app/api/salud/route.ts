@@ -45,7 +45,12 @@ function describeUrl(raw: string | undefined) {
   }
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  // ?ligero=1 lo usa la tarea que mantiene el servidor encendido: solo despierta la conexión.
+  if (new URL(request.url).searchParams.has("ligero")) {
+    await db.execute(sql`select 1`);
+    return new Response("ok", { headers: { "cache-control": "no-store" } });
+  }
   const conexion = await step(() => db.execute(sql`select 1`).then(() => "ok"));
   // Sin conexión no vale la pena seguir: cada paso esperaría hasta agotar el tiempo.
   const skip = async () => ({ ok: false, ms: 0, error: "no se intentó: falló la conexión" });

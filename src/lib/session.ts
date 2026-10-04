@@ -2,6 +2,7 @@ import "server-only";
 import { SignJWT, jwtVerify } from "jose";
 import { eq } from "drizzle-orm";
 import { cookies } from "next/headers";
+import { cache } from "react";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
 import { users } from "@/db/schema";
@@ -36,8 +37,9 @@ export async function createSession(session: Session) {
 /**
  * Lee el token y confirma contra la base que el usuario sigue activo, con su rol
  * actual: desactivar a alguien o cambiarle el rol tiene efecto inmediato.
+ * cache(): el layout y la página comparten la misma consulta en cada visita.
  */
-export async function readSession(): Promise<Session | null> {
+export const readSession = cache(async function readSession(): Promise<Session | null> {
   const token = (await cookies()).get(COOKIE)?.value;
   if (!token) return null;
   let userId: number;
@@ -53,7 +55,7 @@ export async function readSession(): Promise<Session | null> {
     .where(eq(users.id, userId));
   if (!user || !user.active) return null;
   return { userId: user.id, name: user.name, role: isRole(user.role) ? user.role : "cajera" };
-}
+});
 
 /** Para páginas y acciones del servidor: exige sesión o envía al login. */
 export async function requireSession(): Promise<Session> {

@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link, { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
@@ -50,6 +50,15 @@ const CASHIER: Group[] = [
 ];
 
 const BOTTOM_ADMIN = ["/", "/caja", "/compras", "/inventario"];
+
+/** Ícono del menú que se vuelve un indicador girando apenas se toca, mientras llega la pantalla. */
+function NavIcon({ icon: Icon, className }: { icon: Item["icon"]; className: string }) {
+  const { pending } = useLinkStatus();
+  if (pending) {
+    return <span className={`${className} inline-block animate-spin rounded-full border-2 border-current border-t-transparent`} aria-hidden />;
+  }
+  return <Icon className={className} />;
+}
 
 function isActive(path: string, href: string) {
   return href === "/" ? path === "/" : path === href || path.startsWith(`${href}/`);
@@ -118,7 +127,7 @@ export function AppShell({
                       active ? "bg-brand-600 font-medium text-white shadow-sm" : "text-[var(--text)] hover:bg-[var(--surface-2)]"
                     }`}
                   >
-                    <Icon className={`size-5 ${active ? "" : "text-muted"}`} />
+                    <NavIcon icon={Icon} className={`size-5 ${active ? "" : "text-muted"}`} />
                     {item.label}
                   </Link>
                 </li>
@@ -158,7 +167,7 @@ export function AppShell({
             return (
               <li key={item.href} className="flex-1">
                 <Link href={item.href} prefetch={false} className={`flex flex-col items-center gap-0.5 py-2 text-[11px] ${active ? "font-semibold text-brand-600 dark:text-brand-500" : "text-muted"}`}>
-                  <Icon className="size-6" />
+                  <NavIcon icon={Icon} className="size-6" />
                   {item.label}
                 </Link>
               </li>
