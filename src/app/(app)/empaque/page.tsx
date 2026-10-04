@@ -1,5 +1,6 @@
 import { requireAdmin } from "@/lib/session";
-import { and, asc, desc, eq, isNotNull } from "drizzle-orm";
+import { asc, desc, eq } from "drizzle-orm";
+import { loadComponents } from "@/lib/components";
 import { db } from "@/db";
 import { packagingRuns, products } from "@/db/schema";
 import { fmtNum, todayISO } from "@/lib/format";
@@ -9,20 +10,20 @@ export const metadata = { title: "Empaque · Vitalic Hub" };
 
 export default async function EmpaquePage() {
   await requireAdmin();
-  const [list, runs] = await Promise.all([
-    db.select({ id: products.id, name: products.name }).from(products)
-      .where(and(eq(products.active, true), isNotNull(products.rawMaterialId), isNotNull(products.grams)))
-      .orderBy(asc(products.name)),
+  const recipes = await loadComponents();
+  const [all, runs] = await Promise.all([
+    db.select({ id: products.id, name: products.name }).from(products).where(eq(products.active, true)).orderBy(asc(products.name)),
     db.select({ r: packagingRuns, name: products.name }).from(packagingRuns)
       .innerJoin(products, eq(packagingRuns.productId, products.id))
       .orderBy(desc(packagingRuns.createdAt)).limit(50),
   ]);
+  const list = all.filter((p) => recipes.has(p.id));
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-semibold">Empaque</h1>
       <p className="text-sm text-muted">
-        Cada vez que se empaca, registra cuántas bolsas salieron. Se descuentan los kilos del insumo; la merma es lo que
-        se pierde al empacar.
+        Cada vez que se empaca, registra cuántas bolsas salieron. Se descuentan los kilos de cada insumo de la receta
+        (en las mixturas, cada ingrediente en su proporción); la merma es lo que se pierde al empacar.
       </p>
       <section className="card"><PackForm products={list} today={todayISO()} /></section>
       <section className="card overflow-x-auto">

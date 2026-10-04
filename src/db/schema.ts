@@ -61,8 +61,41 @@ export const products = pgTable(
     vendtyCost: money("vendty_cost"),
     packagingCost: money("packaging_cost").notNull().default(0),
     active: boolean("active").notNull().default(true),
+    // Familia a la que pertenece esta presentación (Almendra → 125 g, 250 g, 500 g, 1 kg).
+    familyId: integer("family_id"),
+    format: text("format").notNull().default("bolsa"), // bolsa | papeleta | unidad
+    // Inactiva solo porque se dio de baja su producto completo: vuelve al reactivarlo.
+    pausedByFamily: boolean("paused_by_family").notNull().default(false),
   },
-  (t) => [index("products_raw_idx").on(t.rawMaterialId)],
+  (t) => [index("products_raw_idx").on(t.rawMaterialId), index("products_family_idx").on(t.familyId)],
+);
+
+// Producto "madre": nombre, categoría e IVA. Sus presentaciones (125 g, 250 g, papeleta…) son filas de products.
+export const productFamilies = pgTable("product_families", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull().unique(),
+  category: text("category"),
+  ivaRate: numeric("iva_rate", { precision: 5, scale: 4, mode: "number" }).notNull().default(0),
+  active: boolean("active").notNull().default(true),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+// Receta de cada presentación: gramos de cada insumo que lleva una unidad.
+// "Mixtura dulce 125 g" = 50 g maní salado + 43 g maní dulce + 30 g uvas pasas.
+export const productComponents = pgTable(
+  "product_components",
+  {
+    id: serial("id").primaryKey(),
+    productId: integer("product_id")
+      .notNull()
+      .references(() => products.id, { onDelete: "cascade" }),
+    rawMaterialId: integer("raw_material_id")
+      .notNull()
+      .references(() => rawMaterials.id),
+    grams: qty("grams").notNull(),
+  },
+  (t) => [uniqueIndex("product_components_product_raw").on(t.productId, t.rawMaterialId), index("product_components_raw_idx").on(t.rawMaterialId)],
 );
 
 export const purchases = pgTable("purchases", {

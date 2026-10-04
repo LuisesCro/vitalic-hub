@@ -2,8 +2,9 @@ import { requireAdmin } from "@/lib/session";
 import Link from "next/link";
 import { desc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { competitorPrices, competitors, products, rawMaterials } from "@/db/schema";
-import { unitCost } from "@/lib/costing";
+import { competitorPrices, competitors, products } from "@/db/schema";
+import { unitCostFromComponents } from "@/lib/costing";
+import { loadComponents, loadRawCosts } from "@/lib/components";
 import { fmtCOP, fmtPct } from "@/lib/format";
 import { margin, recommendPrice, RULE_LABELS } from "@/lib/pricing";
 import { getSettings } from "@/lib/settings";
@@ -18,10 +19,10 @@ export default async function PreciosPage({ searchParams }: { searchParams: Prom
   await requireAdmin();
   const vista: View = ((await searchParams).vista as View) in VIEWS ? ((await searchParams).vista as View) : "cambios";
   const s = await getSettings();
+  const recipes = await loadComponents();
+  const rawCosts = await loadRawCosts();
   const [rows, prices] = await Promise.all([
-    db.select({ p: products, rawCost: rawMaterials.avgCostPerKg }).from(products)
-      .leftJoin(rawMaterials, eq(products.rawMaterialId, rawMaterials.id))
-      .where(eq(products.active, true)),
+    db.select({ p: products }).from(products).where(eq(products.active, true)),
     db.select({ productId: competitorPrices.productId, competitor: competitors.name, price: competitorPrices.priceGross, on: competitorPrices.capturedOn })
       .from(competitorPrices).innerJoin(competitors, eq(competitorPrices.competitorId, competitors.id))
       .orderBy(desc(competitorPrices.capturedOn), desc(competitorPrices.id)),
@@ -38,8 +39,9 @@ export default async function PreciosPage({ searchParams }: { searchParams: Prom
 
   const table = rows
     .filter(({ p }) => p.priceNet > 0)
-    .map(({ p, rawCost }) => {
-      const cost = unitCost(p, rawCost, s);
+    .map(({ p }) => {
+      const comps = (recipes.get(p.id) ?? []).map((c) => ({ grams: c.grams, costPerKg: rawCosts.get(c.rawMaterialId) ?? null }));
+      const cost = unitCostFromComponents(p, comps, s);
       const currentGross = Math.round(p.priceNet * (1 + p.ivaRate));
       const comp = latest.get(p.id) ?? new Map<string, number>();
       const rec = recommendPrice(

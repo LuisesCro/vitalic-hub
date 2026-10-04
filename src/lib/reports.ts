@@ -88,11 +88,17 @@ export type ConsumptionRow = { rawMaterialId: number; gramsPerDay: number };
 /** Consumo diario de cada insumo según las bolsas vendidas en los últimos `days` días. */
 export async function rawMaterialConsumption(days = 90): Promise<Map<number, number>> {
   const rows = await db.execute<{ raw_material_id: number; grams: string; span: string }>(sql`
-    with s as (
-      select p.raw_material_id, sl.quantity * p.grams as grams, sl.sold_at
-      from sale_lines sl join products p on p.sku = sl.sku
-      where not sl.excluded and p.raw_material_id is not null and p.grams is not null
-        and sl.sold_at >= now() - make_interval(days => ${days})
+    with comp as (
+      -- Receta de cada producto; los que no tienen receta usan su insumo y gramos de siempre.
+      select pc.product_id, pc.raw_material_id, pc.grams from product_components pc
+      union all
+      select p.id, p.raw_material_id, p.grams from products p
+      where p.raw_material_id is not null and p.grams is not null
+        and not exists (select 1 from product_components x where x.product_id = p.id)
+    ), s as (
+      select comp.raw_material_id, sl.quantity * comp.grams as grams, sl.sold_at
+      from sale_lines sl join products p on p.sku = sl.sku join comp on comp.product_id = p.id
+      where not sl.excluded and sl.sold_at >= now() - make_interval(days => ${days})
     )
     select raw_material_id, sum(grams) as grams,
       greatest(1, extract(epoch from (now() - min(sold_at))) / 86400) as span

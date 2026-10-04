@@ -4,6 +4,8 @@ import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { packagingRuns, products } from "@/db/schema";
+import { loadComponents } from "@/lib/components";
+import { fmtGrams } from "@/lib/catalog";
 import { applyMovement } from "@/lib/inventory";
 import { requireAdmin } from "@/lib/session";
 
@@ -18,19 +20,25 @@ export async function recordPackaging(_prev: PackState, formData: FormData): Pro
   if (!productId || !(bags > 0) || !date) return { error: "Elige el producto, la cantidad de bolsas y la fecha" };
 
   const [product] = await db.select().from(products).where(eq(products.id, productId));
-  if (!product?.rawMaterialId || !product.grams) {
-    return { error: "Este producto no tiene insumo o gramos asignados. Corrígelo en Productos." };
+  const components = (await loadComponents()).get(productId) ?? [];
+  if (!product || components.length === 0) {
+    return { error: "Este producto no tiene receta. Complétala en Catálogo." };
   }
-  const gramsUsed = bags * product.grams + wasteGrams;
+  const content = components.reduce((t, c) => t + c.grams, 0);
+  const gramsUsed = bags * content + wasteGrams;
   await db.transaction(async (tx) => {
     const [run] = await tx
       .insert(packagingRuns)
       .values({ occurredOn: date, productId, bags, gramsUsed, wasteGrams, createdBy: session.userId })
       .returning({ id: packagingRuns.id });
-    await applyMovement(tx, {
-      rawMaterialId: product.rawMaterialId!, occurredOn: date, kind: "empaque", grams: -gramsUsed,
-      packagingRunId: run.id, note: `${bags} x ${product.name}`, userId: session.userId,
-    });
+    // Cada insumo de la receta se descuenta en su proporción; la merma se reparte igual.
+    for (const c of components) {
+      await applyMovement(tx, {
+        rawMaterialId: c.rawMaterialId, occurredOn: date, kind: "empaque",
+        grams: -(bags * c.grams + wasteGrams * (c.grams / content)),
+        packagingRunId: run.id, note: `${bags} x ${product.name} (${fmtGrams(c.grams)} c/u)`, userId: session.userId,
+      });
+    }
   });
   revalidatePath("/empaque");
   revalidatePath("/inventario");

@@ -43,16 +43,40 @@ const STATEMENTS = [
   // 0002_usuarios_roles
   sql`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "role" text DEFAULT 'admin' NOT NULL`,
   sql`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "active" boolean DEFAULT true NOT NULL`,
+  // 0003_catalogo
+  sql`CREATE TABLE IF NOT EXISTS "product_families" (
+    "id" serial PRIMARY KEY NOT NULL,
+    "name" text NOT NULL UNIQUE,
+    "category" text,
+    "iva_rate" numeric(5, 4) DEFAULT 0 NOT NULL,
+    "active" boolean DEFAULT true NOT NULL,
+    "notes" text,
+    "created_at" timestamp with time zone DEFAULT now() NOT NULL
+  )`,
+  sql`CREATE TABLE IF NOT EXISTS "product_components" (
+    "id" serial PRIMARY KEY NOT NULL,
+    "product_id" integer NOT NULL REFERENCES "products"("id") ON DELETE CASCADE,
+    "raw_material_id" integer NOT NULL REFERENCES "raw_materials"("id"),
+    "grams" numeric(14, 3) NOT NULL
+  )`,
+  sql`CREATE UNIQUE INDEX IF NOT EXISTS "product_components_product_raw" ON "product_components" ("product_id", "raw_material_id")`,
+  sql`CREATE INDEX IF NOT EXISTS "product_components_raw_idx" ON "product_components" ("raw_material_id")`,
+  sql`ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "family_id" integer`,
+  sql`ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "format" text DEFAULT 'bolsa' NOT NULL`,
+  sql`CREATE INDEX IF NOT EXISTS "products_family_idx" ON "products" ("family_id")`,
+  sql`ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "paused_by_family" boolean DEFAULT false NOT NULL`,
 ];
 
 /** Revisión de solo lectura: ¿ya está todo? Así casi nunca se toca la estructura. */
 async function upToDate(): Promise<boolean> {
   const rows = await db.execute<{ n: string }>(sql`
     select (select count(*) from information_schema.columns
-             where table_schema = 'public' and table_name = 'users' and column_name in ('role', 'active'))
+             where table_schema = 'public' and (
+               (table_name = 'users' and column_name in ('role', 'active')) or
+               (table_name = 'products' and column_name in ('family_id', 'format', 'paused_by_family'))))
          + (select count(*) from information_schema.tables
-             where table_schema = 'public' and table_name in ('cash_sessions', 'cash_movements')) as n`);
-  return Number(rows[0]?.n) === 4;
+             where table_schema = 'public' and table_name in ('cash_sessions', 'cash_movements', 'product_families', 'product_components')) as n`);
+  return Number(rows[0]?.n) === 9;
 }
 
 let ready: Promise<void> | null = null;
