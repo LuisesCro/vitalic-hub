@@ -155,7 +155,7 @@ export const stockMovements = pgTable(
       .notNull()
       .references(() => rawMaterials.id),
     occurredOn: date("occurred_on", { mode: "string" }).notNull(),
-    kind: text("kind").notNull(), // entrada | empaque | ajuste
+    kind: text("kind").notNull(), // entrada | empaque | ajuste | venta (a granel)
     grams: qty("grams").notNull(), // positivo entra, negativo sale
     costPerKg: money("cost_per_kg"),
     purchaseLineId: integer("purchase_line_id").references(() => purchaseLines.id),
@@ -270,6 +270,19 @@ export const cashMovements = pgTable("cash_movements", {
   category: text("category").notNull(),
   amount: money("amount").notNull(), // siempre positivo; el tipo dice si suma o resta
   note: text("note"),
+  createdBy: integer("created_by").references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+// Ventas a granel (por kilo o bulto) que salen directo del inventario sin empacarse.
+export const bulkSales = pgTable("bulk_sales", {
+  id: serial("id").primaryKey(),
+  occurredOn: date("occurred_on", { mode: "string" }).notNull(),
+  familyId: integer("family_id").notNull().references(() => productFamilies.id),
+  kg: qty("kg").notNull(),
+  totalGross: money("total_gross").notNull(), // lo que pagó el cliente, con IVA
+  suggestedGross: money("suggested_gross").notNull(),
+  customer: text("customer"),
   createdBy: integer("created_by").references(() => users.id),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });

@@ -71,10 +71,13 @@ export default async function CajaPage({ searchParams }: { searchParams: Promise
           <h1 className="text-xl font-semibold">Caja</h1>
           <p className="text-sm text-muted first-letter:uppercase">{fmtDay(date)}{date === today ? " · hoy" : ""}</p>
         </div>
+        <div className="flex flex-wrap items-end gap-2">
+        <Link href="/caja/cotizar" className="btn-primary">Cotizar por kilo o bulto</Link>
         <form className="flex items-end gap-2">
           <label><span className="label">Ver otro día</span><input type="date" name="fecha" defaultValue={date} max={today} className="input" /></label>
           <button className="btn-secondary">Ver</button>
         </form>
+        </div>
       </div>
 
       {!current && (

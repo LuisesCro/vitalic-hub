@@ -39,7 +39,7 @@ export default async function AjustesPage() {
           }
           return (
             <label key={key}>
-              <span className="label">{label}{kind === "pct" ? " (%)" : " (COP)"}</span>
+              <span className="label">{label}{kind === "pct" ? " (%)" : kind === "cop" ? " (COP)" : ""}</span>
               <input name={key} inputMode="decimal" defaultValue={kind === "pct" ? +(s[key] * 100).toFixed(2) : s[key]} className="input" />
             </label>
           );

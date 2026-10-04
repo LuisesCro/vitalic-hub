@@ -12,6 +12,13 @@ export const DEFAULT_SETTINGS = {
   empaqueHasta150g: 0,
   empaqueHasta300g: 0,
   empaqueMas300g: 0,
+  // Ventas por kilo y por bulto: el margen baja según la cantidad.
+  granelDesdeKg2: 5,
+  granelDesdeKg3: 20,
+  margenGranel1: 0.4,
+  margenGranel2: 0.35,
+  margenGranel3: 0.25,
+  margenGranelPiso: 0.2,
 } as const;
 
 export type SettingKey = keyof typeof DEFAULT_SETTINGS;
@@ -25,7 +32,7 @@ export function packagingCostFor(grams: number | null, s: Settings): number {
   return s.empaqueMas300g;
 }
 
-export const SETTING_LABELS: Record<SettingKey, { label: string; kind: "pct" | "cop" | "bool" }> = {
+export const SETTING_LABELS: Record<SettingKey, { label: string; kind: "pct" | "cop" | "bool" | "num" }> = {
   margenObjetivoFrutosSecos: { label: "Margen objetivo frutos secos y frutas deshidratadas", kind: "pct" },
   margenObjetivoEspecias: { label: "Margen objetivo especias, hierbas y otros", kind: "pct" },
   margenMinimo: { label: "Margen mínimo aceptable", kind: "pct" },
@@ -37,4 +44,10 @@ export const SETTING_LABELS: Record<SettingKey, { label: string; kind: "pct" | "
   empaqueHasta150g: { label: "Bolsa y etiqueta de 51 a 150 g", kind: "cop" },
   empaqueHasta300g: { label: "Bolsa y etiqueta de 151 a 300 g", kind: "cop" },
   empaqueMas300g: { label: "Bolsa y etiqueta de más de 300 g", kind: "cop" },
+  granelDesdeKg2: { label: "Por kilo: segundo nivel de descuento desde (kg)", kind: "num" },
+  granelDesdeKg3: { label: "Por kilo: precio de bulto desde (kg)", kind: "num" },
+  margenGranel1: { label: "Margen por kilo, desde 1 kg", kind: "pct" },
+  margenGranel2: { label: "Margen por kilo, segundo nivel", kind: "pct" },
+  margenGranel3: { label: "Margen por kilo, bulto", kind: "pct" },
+  margenGranelPiso: { label: "Margen mínimo al negociar por kilo (precio más bajo que ve la caja)", kind: "pct" },
 };

@@ -8,7 +8,7 @@ type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 export type MovementInput = {
   rawMaterialId: number;
   occurredOn: string;
-  kind: "entrada" | "empaque" | "ajuste";
+  kind: "entrada" | "empaque" | "ajuste" | "venta";
   grams: number; // positivo entra, negativo sale
   costPerKg?: number | null;
   purchaseLineId?: number | null;

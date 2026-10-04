@@ -4,7 +4,7 @@ import Link, { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
-  IconBag, IconBox, IconLayers, IconCash, IconChart, IconHome, IconKey, IconLeaf, IconLogout, IconMenu, IconReceipt,
+  IconBag, IconBox, IconLayers, IconScale, IconCash, IconChart, IconHome, IconKey, IconLeaf, IconLogout, IconMenu, IconReceipt,
   IconSettings, IconTag, IconUpload, IconX, Logo,
 } from "./icons";
 
@@ -17,6 +17,7 @@ const ADMIN: Group[] = [
     items: [
       { href: "/", label: "Inicio", icon: IconHome, hint: "Resumen y pendientes" },
       { href: "/caja", label: "Caja", icon: IconCash, hint: "Apertura y cuadre" },
+      { href: "/caja/cotizar", label: "Cotizar", icon: IconScale, hint: "Precio por kilo o bulto" },
       { href: "/compras", label: "Compras", icon: IconReceipt, hint: "Facturas de proveedores" },
       { href: "/empaque", label: "Empaque", icon: IconBag, hint: "Granel a bolsas" },
       { href: "/inventario", label: "Inventario", icon: IconBox, hint: "Existencias y conteos" },
@@ -45,6 +46,7 @@ const CASHIER: Group[] = [
     title: "Mi trabajo",
     items: [
       { href: "/caja", label: "Caja", icon: IconCash },
+      { href: "/caja/cotizar", label: "Cotizar", icon: IconScale },
       { href: "/ajustes", label: "Mi clave", icon: IconKey },
     ],
   },
@@ -62,6 +64,7 @@ function NavIcon({ icon: Icon, className }: { icon: Item["icon"]; className: str
 }
 
 function isActive(path: string, href: string) {
+  if (href === "/caja") return path === "/caja";
   return href === "/" ? path === "/" : path === href || path.startsWith(`${href}/`);
 }
 
