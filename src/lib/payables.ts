@@ -8,6 +8,7 @@ export const PAYMENT_METHODS_SUPPLIER = {
   breb: "Llave / Bre-B",
   cheque: "Cheque",
   retencion: "Retención o descuento (no sale dinero)",
+  otro: "Otro / sin especificar",
 } as const;
 export type SupplierPaymentMethod = keyof typeof PAYMENT_METHODS_SUPPLIER;
 

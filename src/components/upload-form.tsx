@@ -9,15 +9,17 @@ export function UploadForm({
   action,
   accept,
   button,
+  multiple = false,
 }: {
   action: (prev: State, formData: FormData) => Promise<State>;
   accept: string;
   button: string;
+  multiple?: boolean;
 }) {
   const [state, formAction, pending] = useActionState<State, FormData>(action, {});
   return (
     <form action={formAction} className="space-y-3">
-      <FilePicker accept={accept} />
+      <FilePicker accept={accept} multiple={multiple} />
       <button className="btn-primary" disabled={pending}>
         {pending ? "Procesando…" : button}
       </button>

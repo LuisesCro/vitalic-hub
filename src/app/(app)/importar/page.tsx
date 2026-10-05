@@ -3,7 +3,7 @@ import { count, max, min } from "drizzle-orm";
 import { db } from "@/db";
 import { products, rawMaterials, saleLines } from "@/db/schema";
 import { UploadForm } from "@/components/upload-form";
-import { importInventory, importProducts, importTransactions } from "./actions";
+import { importCloses, importInventory, importProducts, importTransactions } from "./actions";
 
 export const metadata = { title: "Importar · Vitalic Hub" };
 
@@ -33,6 +33,14 @@ export default async function ImportarPage() {
           Vendty → Informes → Exportar facturas (Transacciones). Recomendado: una vez por semana.
         </p>
         <UploadForm action={importTransactions} accept=".xls,.xlsx" button="Importar ventas" />
+      </section>
+      <section className="card space-y-2">
+        <h2 className="font-semibold">Cierres de caja de Vendty (PDF)</h2>
+        <p className="text-sm text-muted">
+          Vendty → Informes → Cierre de caja, guardado como PDF (puedes elegir varios a la vez). Carga las ventas de cada día por
+          producto. Los días que ya tienen ventas no se tocan, y si después subes la exportación de Transacciones, ella los reemplaza.
+        </p>
+        <UploadForm action={importCloses} accept=".pdf" button="Cargar cierres" multiple />
       </section>
       <section className="card space-y-2">
         <h2 className="font-semibold">3. Inventario inicial o conteo general</h2>

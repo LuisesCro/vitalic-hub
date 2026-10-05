@@ -25,7 +25,7 @@ async function shrinkImage(file: File): Promise<File> {
   }
 }
 
-export function FilePicker({ name = "file", accept, hint }: { name?: string; accept: string; hint?: string }) {
+export function FilePicker({ name = "file", accept, hint, multiple = false }: { name?: string; accept: string; hint?: string; multiple?: boolean }) {
   const ref = useRef<HTMLInputElement>(null);
   const [fileName, setFileName] = useState<string | null>(null);
 
@@ -52,13 +52,15 @@ export function FilePicker({ name = "file", accept, hint }: { name?: string; acc
         type="file"
         name={name}
         accept={accept}
+        multiple={multiple}
         required
         className="sr-only"
         onChange={async (e) => {
           const input = e.target;
           const file = input.files?.[0];
-          setFileName(file?.name ?? null);
-          if (!file) return;
+          const count = input.files?.length ?? 0;
+          setFileName(count > 1 ? `${count} archivos elegidos` : file?.name ?? null);
+          if (!file || count > 1) return;
           const small = await shrinkImage(file);
           if (small !== file) {
             const data = new DataTransfer();

@@ -8,6 +8,12 @@ import { matchRawMaterial } from "@/lib/matching";
 import { requireAdmin } from "@/lib/session";
 import { gramsFromName } from "@/lib/units";
 import { parseInventoryCount, parseVendtyProducts, parseVendtyTransactions } from "@/lib/vendty";
+import { parseVendtyClose } from "@/lib/vendty-close";
+import { loadComponents, loadRawCosts } from "@/lib/components";
+import { unitCostFromComponents } from "@/lib/costing";
+import { getSettings } from "@/lib/settings";
+import { matchProduct } from "@/lib/matching";
+import { sql as dsql } from "drizzle-orm";
 import { applyMovement } from "@/lib/inventory";
 import { todayISO } from "@/lib/format";
 import { normalize } from "@/lib/units";
@@ -87,6 +93,10 @@ export async function importTransactions(_prev: ImportState, formData: FormData)
     return { error: "No pude leer el archivo. ¿Es 'Exportar facturas (Transacciones)' de Vendty?" };
   }
   if (rows.length === 0) return { error: "El archivo no trae líneas de venta" };
+
+  // Si antes se cargaron cierres en PDF de esos mismos días, la exportación real los reemplaza.
+  const days = [...new Set(rows.map((r) => bogotaDay(r.soldAt)))];
+  for (const d of days) await db.delete(saleLines).where(eq(saleLines.invoice, `CIERRE-${d}`));
 
   const CHUNK = 500;
   for (let i = 0; i < rows.length; i += CHUNK) {
@@ -181,4 +191,73 @@ export async function importInventory(_prev: ImportState, formData: FormData): P
     parts.push(`${missing.length} no los encontré en el catálogo: ${missing.slice(0, 8).join(", ")}${missing.length > 8 ? "…" : ""}.`);
   }
   return { ok: parts.join(" ") };
+}
+
+
+const bogotaDay = (d: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Bogota" }).format(d);
+
+/**
+ * Cierres de caja de Vendty en PDF: ventas por producto de cada día. Sirven cuando todavía no se tiene la
+ * exportación de Transacciones. Los días que ya tienen ventas de Transacciones o de Vitalic Hub no se tocan.
+ */
+export async function importCloses(_prev: ImportState, formData: FormData): Promise<ImportState> {
+  await requireAdmin();
+  const files = formData.getAll("file").filter((f): f is File => f instanceof File && f.size > 0);
+  if (files.length === 0) return { error: "Elige los PDF de cierre de caja de Vendty" };
+  const { extractText, getDocumentProxy } = await import("unpdf");
+
+  const settings = await getSettings();
+  const recipes = await loadComponents();
+  const rawCosts = await loadRawCosts();
+  const prods = await db.select().from(products);
+  const byName = new Map(prods.map((p) => [normalize(p.name), p]));
+  const messages: string[] = [];
+  let loaded = 0;
+  let unmatched = 0;
+
+  for (const file of files) {
+    let close;
+    try {
+      const pdf = await getDocumentProxy(new Uint8Array(await file.arrayBuffer()));
+      close = parseVendtyClose((await extractText(pdf, { mergePages: true })).text);
+    } catch {
+      messages.push(`${file.name}: no pude leerlo como PDF.`);
+      continue;
+    }
+    if (!close || close.items.length === 0) { messages.push(`${file.name}: no parece un cierre de caja de Vendty.`); continue; }
+    const sum = close.items.reduce((t, i) => t + i.value, 0);
+    if (Math.abs(sum - close.total) > 5) { messages.push(`${close.date}: los productos suman ${sum} y el total dice ${close.total}; no lo cargué.`); continue; }
+
+    const [existing] = await db.execute<{ n: string; total: string }>(dsql`
+      select count(*) as n, coalesce(sum(total), 0) as total from sale_lines
+      where (sold_at at time zone 'America/Bogota')::date = ${close.date} and invoice not like 'CIERRE-%' and not excluded`);
+    if (Number(existing.n) > 0) {
+      messages.push(`${close.date}: ya tiene ventas cargadas (${Number(existing.total).toLocaleString("es-CO")} de ${close.total.toLocaleString("es-CO")} del cierre); no lo toqué.`);
+      continue;
+    }
+
+    const soldAt = new Date(`${close.date}T12:00:00-05:00`);
+    const rows = close.items.map((it, i) => {
+      const prod = byName.get(normalize(it.name)) ?? matchProduct(it.name, gramsFromName(it.name), prods) ?? null;
+      if (!prod) unmatched++;
+      const iva = prod?.ivaRate ?? 0;
+      const comps = prod ? (recipes.get(prod.id) ?? []).map((c) => ({ grams: c.grams, costPerKg: rawCosts.get(c.rawMaterialId) ?? null })) : [];
+      const cost = prod ? unitCostFromComponents(prod, comps, settings) ?? 0 : 0;
+      const net = Math.round((it.value / (1 + iva)) * 100) / 100;
+      return {
+        externalKey: `CIERRE-${close.date}|${i + 1}|${it.name}`, invoice: `CIERRE-${close.date}`, soldAt,
+        sku: prod?.sku ?? "SIN-CODIGO", productName: prod?.name ?? it.name, category: prod?.category ?? null,
+        quantity: it.quantity, unitPriceNet: Math.round(((it.value + it.discount) / it.quantity / (1 + iva)) * 100) / 100, unitCostNet: cost,
+        subtotalNet: net, tax: Math.round((it.value - net) * 100) / 100, total: it.value, paymentMethod: null,
+      };
+    });
+    await db.transaction(async (tx) => {
+      await tx.delete(saleLines).where(eq(saleLines.invoice, `CIERRE-${close.date}`));
+      for (let k = 0; k < rows.length; k += 200) await tx.insert(saleLines).values(rows.slice(k, k + 200));
+    });
+    loaded++;
+    messages.push(`${close.date}: ${rows.length} líneas por ${close.total.toLocaleString("es-CO")} (${close.salesCount} ventas).`);
+  }
+  revalidatePath("/", "layout");
+  return { ok: `${loaded} cierres cargados. ${messages.join(" ")}${unmatched ? ` ${unmatched} líneas no coincidieron con un producto del catálogo (cuentan en ventas, no en utilidad).` : ""}` };
 }

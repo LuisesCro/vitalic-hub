@@ -49,6 +49,7 @@ export default async function ProductoPage({ params, searchParams }: { params: P
         priceGross: p.priceNet * (1 + p.ivaRate),
         sku: p.sku,
         active: p.active,
+        cost: p.vendtyCost,
         custom: comps.length > 1 && !same ? Object.fromEntries(comps.map((c) => [String(c.rawMaterialId), c.grams])) : null,
       };
     }),

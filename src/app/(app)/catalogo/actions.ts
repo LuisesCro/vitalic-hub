@@ -135,6 +135,7 @@ const PayloadSchema = z.object({
         priceGross: z.number().positive("Escribe el precio de cada presentación"),
         sku: z.string().trim().max(60).optional(),
         active: z.boolean(),
+        cost: z.number().positive().optional(),
         components: z.array(z.object({ ref: Ref, grams: z.number().positive() })).optional(),
       }),
     )
@@ -209,6 +210,7 @@ export async function saveFamily(_prev: CatalogState, formData: FormData): Promi
         name, category: payload.category, grams, ivaRate: payload.ivaRate, format, active: pr.active, familyId: familyId!,
         priceNet: Math.round((pr.priceGross / (1 + payload.ivaRate)) * 100) / 100,
         rawMaterialId: comps.length === 1 ? comps[0].rawMaterialId : null,
+        ...(!comps.length && pr.cost ? { vendtyCost: pr.cost } : {}),
       };
       let productId = pr.id;
       if (productId) {
