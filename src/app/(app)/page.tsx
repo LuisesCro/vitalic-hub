@@ -54,6 +54,16 @@ export default async function InicioPage() {
   const net = fixed === null || !last ? null : last.grossProfit - fixed;
   const breakEven = fixed && avgMargin ? fixed / avgMargin : null;
   const salesDelta = last && prev && prev.sales ? last.sales / prev.sales - 1 : null;
+  // Encabezado: el mes en curso (lo que va corrido). Si todavía no hay ventas del mes, el último mes completo.
+  const cur = months.find((m) => m.month === thisMonth) ?? last;
+  const dayOfMonth = Number(todayISO().slice(8, 10));
+  const daysInMonth = new Date(Number(thisMonth.slice(0, 4)), Number(thisMonth.slice(5, 7)), 0).getDate();
+  const isPartial = !!cur && cur.month === thisMonth;
+  const curExpenses = cur ? exp.get(cur.month)?.total ?? null : null;
+  const curNet = curExpenses === null || !cur ? null : cur.grossProfit - curExpenses;
+  const projected = isPartial && cur && dayOfMonth > 0 ? (cur.sales / dayOfMonth) * daysInMonth : null;
+  const prevMonth = cur ? [...closed].reverse().find((m) => m.month < cur.month) : undefined;
+  const curDelta = cur && prevMonth && prevMonth.sales ? cur.sales / prevMonth.sales - 1 : null;
 
   const toOrder = materials.filter((m) => {
     const perDay = consumption.get(m.id) ?? 0;
@@ -79,25 +89,38 @@ export default async function InicioPage() {
       ) : (
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <StatCard
-            label={`Ventas ${last ? fmtMonth(last.month) : ""}`}
-            value={fmtCOP(last?.sales)}
+            label={`Ventas ${cur ? fmtMonth(cur.month) : ""}${isPartial ? " (en curso)" : ""}`}
+            value={fmtCOP(cur?.sales)}
             icon={<IconChart className="size-4" />}
             hint={
-              salesDelta === null ? "Sin IVA" : (
-                <span className="inline-flex items-center gap-1" style={{ color: salesDelta >= 0 ? "var(--good)" : "var(--bad)" }}>
-                  {salesDelta >= 0 ? <IconTrendUp className="size-3.5" /> : <IconTrendDown className="size-3.5" />}
-                  {fmtPct(salesDelta)} vs. {fmtMonth(prev!.month)}
+              isPartial && projected !== null ? (
+                <span>Día {dayOfMonth} de {daysInMonth} · proyección {fmtCOP(Math.round(projected / 1000) * 1000)}</span>
+              ) : curDelta === null ? "Sin IVA" : (
+                <span className="inline-flex items-center gap-1" style={{ color: curDelta >= 0 ? "var(--good)" : "var(--bad)" }}>
+                  {curDelta >= 0 ? <IconTrendUp className="size-3.5" /> : <IconTrendDown className="size-3.5" />}
+                  {fmtPct(curDelta)} vs. {fmtMonth(prevMonth!.month)}
                 </span>
               )
             }
           />
-          <StatCard label="Margen bruto" value={fmtPct(avgMargin)} hint={`Meta mínima ${fmtPct(s.margenMinimo)} · 6 meses`} tone={avgMargin < s.margenMinimo ? "bad" : "good"} icon={<IconTag className="size-4" />} />
-          <StatCard label="Utilidad bruta / mes" value={fmtCOP(avgGross)} hint="Promedio 6 meses" icon={<IconTrendUp className="size-4" />} />
           <StatCard
-            label={`Utilidad neta ${last ? fmtMonth(last.month) : ""}`}
-            value={net === null ? "Faltan gastos" : fmtCOP(net)}
-            tone={net === null ? undefined : net < 0 ? "bad" : "good"}
-            hint={net === null ? <Link className="underline" href="/resultados">Cargar gastos del mes</Link> : "Después de gastos fijos"}
+            label={`Margen bruto ${cur ? fmtMonth(cur.month) : ""}`}
+            value={fmtPct(cur?.grossMargin ?? 0)}
+            hint={`Meta mínima ${fmtPct(s.margenMinimo)}${closed.length ? ` · prom. 6 meses ${fmtPct(avgMargin)}` : ""}`}
+            tone={(cur?.grossMargin ?? 0) < s.margenMinimo ? "bad" : "good"}
+            icon={<IconTag className="size-4" />}
+          />
+          <StatCard
+            label={`Utilidad bruta ${cur ? fmtMonth(cur.month) : ""}`}
+            value={fmtCOP(cur?.grossProfit)}
+            hint={closed.length ? `Promedio mensual ${fmtCOP(avgGross)}` : "Sin IVA"}
+            icon={<IconTrendUp className="size-4" />}
+          />
+          <StatCard
+            label={`Utilidad neta ${cur ? fmtMonth(cur.month) : ""}`}
+            value={curNet === null ? "Faltan gastos" : fmtCOP(curNet)}
+            tone={curNet === null ? undefined : curNet < 0 ? "bad" : "good"}
+            hint={curNet === null ? <Link className="underline" href="/resultados">Cargar gastos del mes</Link> : isPartial ? "Con los gastos cargados hasta hoy" : "Después de gastos fijos"}
             icon={<IconCash className="size-4" />}
           />
         </div>
