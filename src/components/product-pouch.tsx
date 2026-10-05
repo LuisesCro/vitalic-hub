@@ -1,3 +1,5 @@
+import { photoFor } from "@/lib/product-photos";
+
 type Kind = "nut" | "round" | "dots" | "stick" | "leaf" | "kidney" | "powder";
 
 const norm = (t: string) => t.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
@@ -92,8 +94,16 @@ function Item({ kind, x, y, i, c1, c2 }: { kind: Kind; x: number; y: number; i: 
   }
 }
 
-/** Bowl de cerámica con el producto servido encima. */
+/** Foto del catálogo si existe; si no, un bowl dibujado con el producto. */
 export function ProductPouch({ name, size = 56 }: { name: string; size?: number }) {
+  const photo = photoFor(name);
+  // eslint-disable-next-line @next/next/no-img-element
+  if (photo) return <img src={photo} alt={name} width={size} height={size} loading="lazy" className="shrink-0 object-contain" style={{ width: size, height: size }} />;
+  return <DrawnBowl name={name} size={size} />;
+}
+
+/** Bowl de cerámica con el producto servido encima. */
+function DrawnBowl({ name, size }: { name: string; size: number }) {
   const { kind, c1, c2 } = pouchLook(name);
   const pts = kind === "powder" ? [] : mound(kind);
   return (
