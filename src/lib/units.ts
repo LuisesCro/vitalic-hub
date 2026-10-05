@@ -41,5 +41,10 @@ export function kgPerInvoiceUnit(description: string, unitCode?: string | null):
   if (code === "GRM") return 0.001;
   if (code === "LBR") return 0.5;
   const grams = gramsFromName(description);
-  return grams === null ? null : grams / 1000;
+  if (grams !== null) return grams / 1000;
+  // Medidas de plaza: la arroba son 25 libras (12,5 kg) y la libra son 500 g.
+  const text = normalize(description);
+  if (/\barrobas?\b/.test(text)) return 12.5;
+  if (/\b(?:libras?|lb|lbs)\b/.test(text)) return 0.5;
+  return null;
 }

@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, lte, or } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
@@ -168,6 +168,10 @@ export async function confirmPurchase(formData: FormData) {
   const session = await requireAdmin();
   const purchaseId = Number(formData.get("purchaseId"));
   await saveEdits(purchaseId, formData);
+
+  // No se confirma una factura con productos del inventario a los que les falta el peso.
+  const missing = await db.select({ id: purchaseLines.id }).from(purchaseLines).where(and(eq(purchaseLines.purchaseId, purchaseId), isNotNull(purchaseLines.rawMaterialId), or(isNull(purchaseLines.kgPerUnit), lte(purchaseLines.kgPerUnit, 0))));
+  if (missing.length > 0) redirect(`/compras/${purchaseId}?falta=${missing.length}`);
 
   await db.transaction(async (tx) => {
     const [purchase] = await tx.select().from(purchases).where(eq(purchases.id, purchaseId)).for("update");

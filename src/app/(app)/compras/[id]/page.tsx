@@ -10,9 +10,10 @@ import { deleteSupplierPayment, updatePaymentTerms } from "../payments";
 import { PayBadge } from "../status-badge";
 import { completePurchaseLines, confirmPurchase, deleteDraft, saveDraft } from "../actions";
 
-export default async function CompraPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function CompraPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ falta?: string }> }) {
   await requireAdmin();
   const id = Number((await params).id);
+  const falta = Number((await searchParams).falta ?? 0);
   if (!Number.isInteger(id)) notFound();
   const [purchase] = await db
     .select({ p: purchases, supplier: suppliers.name })
@@ -110,6 +111,11 @@ export default async function CompraPage({ params }: { params: Promise<{ id: str
       <form className="space-y-4">
         <input type="hidden" name="purchaseId" value={p.id} />
         <h2 className="font-semibold">Productos e inventario</h2>
+        {falta > 0 && (
+          <p className="rounded-lg px-3 py-2 text-sm" style={{ background: "var(--bad-bg)", color: "var(--bad)" }}>
+            No se confirmó: {falta === 1 ? "hay 1 producto" : `hay ${falta} productos`} del inventario sin peso (marcados en rojo). Escribe los kg por unidad, o elige «No va al inventario», y confirma de nuevo.
+          </p>
+        )}
         <label className="block max-w-xs">
           <span className="label">Fecha de la factura</span>
           <input type="date" name="issueDate" defaultValue={p.issueDate ?? ""} disabled={locked} className="input" />
@@ -118,14 +124,16 @@ export default async function CompraPage({ params }: { params: Promise<{ id: str
           {lines.map((l) => {
             const kg = l.kgPerUnit ? l.quantity * l.kgPerUnit : null;
             const lineLocked = locked && entered.has(l.id);
+            const noWeight = !lineLocked && !!l.rawMaterialId && !(l.kgPerUnit && l.kgPerUnit > 0);
             return (
-              <div key={l.id} className="card grid gap-3 sm:grid-cols-[2fr_1fr_1fr]">
+              <div key={l.id} className="card grid gap-3 sm:grid-cols-[2fr_1fr_1fr]" style={noWeight ? { borderColor: "var(--bad)" } : undefined}>
                 <div>
                   <p className="font-medium">{l.description}</p>
                   <p className="text-sm text-muted">
                     {fmtNum(l.quantity)} {l.unit ?? ""} · {fmtCOP(l.lineTotal)} sin IVA
                     {kg ? ` · ${fmtNum(kg)} kg a ${fmtCOP(l.lineTotal / kg)}/kg` : ""}
                   </p>
+                  {noWeight && <p className="mt-1 text-sm font-medium" style={{ color: "var(--bad)" }}>Falta el peso: escribe cuántos kg trae cada unidad.</p>}
                 </div>
                 <label>
                   <span className="label">Insumo</span>

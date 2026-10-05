@@ -25,6 +25,12 @@ describe("kgPerInvoiceUnit", () => {
     expect(kgPerInvoiceUnit("ALMENDRA NONPAREIL CAJA 22,68 KG", "NIU")).toBeCloseTo(22.68);
     expect(kgPerInvoiceUnit("GRANOLA 450G", "94")).toBeCloseTo(0.45);
   });
+  it("entiende arroba y libra", () => {
+    expect(kgPerInvoiceUnit("ARROBA MANI SIMPLE", "NIU")).toBe(12.5);
+    expect(kgPerInvoiceUnit("COLOR SUPER ARROBA", null)).toBe(12.5);
+    expect(kgPerInvoiceUnit("PISTACHO LIBRA", null)).toBe(0.5);
+    expect(kgPerInvoiceUnit("COJIN SEMILLAS DE CHIA", null)).toBeNull();
+  });
   it("normaliza tildes", () => {
     expect(normalize("Marañón  Tostado")).toBe("maranon tostado");
   });
