@@ -4,6 +4,27 @@ import { useEffect, useRef, useState } from "react";
 import { IconUpload } from "./icons";
 
 /** Selector de archivo en español, grande y fácil de tocar en el celular. */
+/**
+ * Las fotos del celular pesan de 3 a 8 MB y el servidor rechaza cuerpos de más de ~4,5 MB.
+ * Se reducen aquí (lado mayor 2000 px, JPEG) antes de enviarlas; se sigue leyendo bien el texto.
+ */
+async function shrinkImage(file: File): Promise<File> {
+  if (!file.type.startsWith("image/") || file.type === "image/gif" || file.size < 1_200_000) return file;
+  try {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, 2000 / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(bitmap.width * scale);
+    canvas.height = Math.round(bitmap.height * scale);
+    canvas.getContext("2d")!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    const blob: Blob | null = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.85));
+    if (!blob || blob.size >= file.size) return file;
+    return new File([blob], file.name.replace(/\.[^.]+$/, "") + ".jpg", { type: "image/jpeg" });
+  } catch {
+    return file;
+  }
+}
+
 export function FilePicker({ name = "file", accept, hint }: { name?: string; accept: string; hint?: string }) {
   const ref = useRef<HTMLInputElement>(null);
   const [fileName, setFileName] = useState<string | null>(null);
@@ -33,7 +54,18 @@ export function FilePicker({ name = "file", accept, hint }: { name?: string; acc
         accept={accept}
         required
         className="sr-only"
-        onChange={(e) => setFileName(e.target.files?.[0]?.name ?? null)}
+        onChange={async (e) => {
+          const input = e.target;
+          const file = input.files?.[0];
+          setFileName(file?.name ?? null);
+          if (!file) return;
+          const small = await shrinkImage(file);
+          if (small !== file) {
+            const data = new DataTransfer();
+            data.items.add(small);
+            input.files = data.files;
+          }
+        }}
       />
     </label>
   );
