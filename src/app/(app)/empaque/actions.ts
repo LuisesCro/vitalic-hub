@@ -7,6 +7,7 @@ import { packagingRuns, products } from "@/db/schema";
 import { loadComponents } from "@/lib/components";
 import { fmtGrams } from "@/lib/catalog";
 import { applyMovement } from "@/lib/inventory";
+import { adjustStockUnits } from "@/lib/stock-units";
 import { requireAdmin } from "@/lib/session";
 
 export type PackState = { ok?: string; error?: string };
@@ -39,7 +40,9 @@ export async function recordPackaging(_prev: PackState, formData: FormData): Pro
         packagingRunId: run.id, note: `${bags} x ${product.name} (${fmtGrams(c.grams)} c/u)`, userId: session.userId,
       });
     }
+    await adjustStockUnits(tx, productId, bags); // las bolsas empacadas quedan listas para vender
   });
+  revalidatePath("/vender");
   revalidatePath("/empaque");
   revalidatePath("/inventario");
   return { ok: `Registrado: ${bags} bolsas de ${product.name} (${(gramsUsed / 1000).toLocaleString("es-CO")} kg descontados).` };

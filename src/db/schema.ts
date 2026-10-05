@@ -66,6 +66,8 @@ export const products = pgTable(
     format: text("format").notNull().default("bolsa"), // bolsa | papeleta | unidad
     // Inactiva solo porque se dio de baja su producto completo: vuelve al reactivarlo.
     pausedByFamily: boolean("paused_by_family").notNull().default(false),
+    // Bolsas o unidades listas para vender. Null = no se lleva el conteo de este producto.
+    stockUnits: numeric("stock_units", { precision: 14, scale: 3, mode: "number" }),
   },
   (t) => [index("products_raw_idx").on(t.rawMaterialId), index("products_family_idx").on(t.familyId)],
 );
@@ -326,7 +328,9 @@ export const posSales = pgTable(
     cashReceived: money("cash_received"),
     changeGiven: money("change_given"),
     status: text("status").notNull().default("vigente"), // vigente | anulada
-    voidReason: text("void_reason"),
+    voidReason: text("void_reason"), // en una devolución: el motivo
+    // Si es una devolución, el id de la venta original (los valores van en negativo).
+    returnOf: integer("return_of"),
     createdBy: integer("created_by").references(() => users.id),
   },
   (t) => [index("pos_sales_date_idx").on(t.businessDate)],

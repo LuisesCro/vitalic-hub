@@ -8,6 +8,7 @@ import { matchRawMaterial } from "@/lib/matching";
 import { requireAdmin } from "@/lib/session";
 import { gramsFromName } from "@/lib/units";
 import { parseInventoryCount, parseVendtyProducts, parseVendtyTransactions } from "@/lib/vendty";
+import { parseBagStock } from "@/lib/bag-stock";
 import { parseVendtyClose } from "@/lib/vendty-close";
 import { loadComponents, loadRawCosts } from "@/lib/components";
 import { unitCostFromComponents } from "@/lib/costing";
@@ -260,4 +261,50 @@ export async function importCloses(_prev: ImportState, formData: FormData): Prom
   }
   revalidatePath("/", "layout");
   return { ok: `${loaded} cierres cargados. ${messages.join(" ")}${unmatched ? ` ${unmatched} líneas no coincidieron con un producto del catálogo (cuentan en ventas, no en utilidad).` : ""}` };
+}
+
+/**
+ * Bolsas listas para vender: toma la columna Unidades de la existencia de inventario de Vendty y deja cada
+ * producto con ese conteo. Desde ahí la caja descuenta lo que vende y el empaque suma lo que se empaca.
+ * Los negativos (ventas de más en Vendty) quedan en 0.
+ */
+export async function importBagStock(_prev: ImportState, formData: FormData): Promise<ImportState> {
+  await requireAdmin();
+  const bytes = await fileBytes(formData);
+  if (!bytes) return { error: "Selecciona el archivo de existencia de inventario" };
+  let lines;
+  try {
+    lines = parseBagStock(bytes);
+  } catch {
+    return { error: "No pude leer el archivo. Usa la existencia de inventario de Vendty (con columnas Producto, Codigo y Unidades)." };
+  }
+  if (lines.length === 0) return { error: "No encontré las columnas Producto y Unidades en el archivo" };
+  const prods = await db.select({ id: products.id, sku: products.sku, name: products.name }).from(products);
+  const bySku = new Map(prods.map((p) => [p.sku.toLowerCase(), p]));
+  const byName = new Map(prods.map((p) => [normalize(p.name), p]));
+  let set = 0;
+  let negatives = 0;
+  const missing: string[] = [];
+  const seen = new Set<number>();
+  const batch: { id: number; units: number }[] = [];
+  for (const l of lines) {
+    const p = (l.code && bySku.get(l.code.toLowerCase())) || byName.get(normalize(l.name));
+    if (!p) { missing.push(l.name); continue; }
+    if (seen.has(p.id)) continue;
+    seen.add(p.id);
+    if (l.units < 0) negatives++;
+    batch.push({ id: p.id, units: Math.max(l.units, 0) });
+  }
+  if (batch.length) {
+    await db.execute(dsql`
+      update products p set stock_units = v.units
+      from jsonb_to_recordset(${JSON.stringify(batch)}::jsonb) as v(id int, units numeric)
+      where p.id = v.id`);
+    set = batch.length;
+  }
+  revalidatePath("/", "layout");
+  const parts = [`Listo: ${set} productos quedaron con su conteo de bolsas.`];
+  if (negatives) parts.push(`${negatives} venían en negativo y quedaron en 0.`);
+  if (missing.length) parts.push(`${missing.length} no los encontré en el catálogo: ${missing.slice(0, 6).join(", ")}${missing.length > 6 ? "…" : ""}.`);
+  return { ok: parts.join(" ") };
 }

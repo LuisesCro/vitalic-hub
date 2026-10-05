@@ -64,6 +64,13 @@
       "when": 1791218388621,
       "tag": "0008_granel_en_caja",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1791227280963,
+      "tag": "0009_devoluciones_y_stock",
+      "breakpoints": true
     }
   ]
 }

@@ -16,6 +16,20 @@ type BulkLine = { key: number; item: PublicQuoteItem; kg: number; total: number 
 type Held = { at: number; cart: { id: number; q: number }[]; bulk: { familyId: number; kg: number; total: number }[]; customer: string };
 const HOLD_KEY = "vitalic-espera";
 const KG_BUTTONS = [0.5, 1, 2, 3, 5, 10, 25];
+/** Cuántas bolsas hay: rojo si no hay, ámbar si quedan pocas. Sin conteo no se muestra nada. */
+function StockChip({ stock }: { stock: number | null }) {
+  if (stock === null) return null;
+  const out = stock <= 0;
+  const low = !out && stock <= 3;
+  return (
+    <span
+      className="inline-block rounded-md px-1.5 py-0.5 text-[11px] font-semibold leading-none"
+      style={{ background: out ? "var(--bad-bg)" : low ? "var(--warn-bg, #fdf1d6)" : "var(--surface-2)", color: out ? "var(--bad)" : low ? "var(--warn)" : "inherit" }}
+    >
+      {out ? "Sin stock" : `Stock ${stock.toLocaleString("es-CO", { maximumFractionDigits: 1 })}`}
+    </span>
+  );
+}
 const kgText = (kg: number) => `${kg.toLocaleString("es-CO", { maximumFractionDigits: 3 })} kg`;
 
 const strip = (t: string) => t.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
@@ -167,7 +181,7 @@ export function PosTerminal({ products, quick, isAdmin, bulkItems, settings }: {
                 <li key={p.id}>
                   <button type="button" onClick={() => add(p)} className="flex w-full items-center gap-3 px-3 py-2 text-left hover:bg-[var(--surface-2)]">
                     <ProductPouch name={p.name} size={44} />
-                    <span className="min-w-0 flex-1"><span className="block truncate font-medium">{p.name}</span><span className="block truncate text-xs text-muted">{p.category ?? ""}</span></span>
+                    <span className="min-w-0 flex-1"><span className="block truncate font-medium">{p.name}</span><span className="mt-0.5 flex items-center gap-2 text-xs text-muted"><span className="truncate">{p.category ?? ""}</span><StockChip stock={p.stock} /></span></span>
                     <span className="shrink-0 font-semibold tabular-nums">{fmtCOP(p.priceGross)}{p.byWeight ? "/g" : ""}</span>
                   </button>
                 </li>
@@ -200,7 +214,7 @@ export function PosTerminal({ products, quick, isAdmin, bulkItems, settings }: {
                 <span className="flex shrink-0 items-center justify-center rounded-lg bg-brand-50 p-1 dark:bg-[var(--surface-2)]"><ProductPouch name={p.name} size={52} /></span>
                 <span className="min-w-0">
                   <span className="line-clamp-2 block text-sm font-medium leading-tight">{p.name}</span>
-                  <span className="mt-0.5 block text-sm font-semibold tabular-nums text-brand-700 dark:text-brand-500">{fmtCOP(p.priceGross)}{p.byWeight ? "/g" : ""}</span>
+                  <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-semibold tabular-nums text-brand-700 dark:text-brand-500">{fmtCOP(p.priceGross)}{p.byWeight ? "/g" : ""}<StockChip stock={p.stock} /></span>
                 </span>
               </button>
             ))}
@@ -236,6 +250,7 @@ export function PosTerminal({ products, quick, isAdmin, bulkItems, settings }: {
                   <input value={l.quantity} onChange={(e) => setQty(l.product.id, Number(e.target.value.replace(",", ".")) || 0)} inputMode="decimal" className="input w-20 py-1 text-center" aria-label="Cantidad" />
                   <button type="button" onClick={() => setQty(l.product.id, l.quantity + (l.product.byWeight ? 50 : 1))} className="btn-secondary px-3 py-1" aria-label="Más">+</button>
                   <span className="text-muted">{l.product.byWeight ? "g" : "und"} × {fmtCOP(l.product.priceGross)}</span>
+                  {l.product.stock !== null && l.quantity > l.product.stock && <span className="text-xs" style={{ color: "var(--warn)" }}>Solo hay {Math.max(0, Math.floor(l.product.stock))}</span>}
                   <button type="button" onClick={() => setQty(l.product.id, 0)} className="ml-auto text-muted underline">Quitar</button>
                 </div>
               </li>

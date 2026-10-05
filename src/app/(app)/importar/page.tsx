@@ -3,7 +3,7 @@ import { count, max, min } from "drizzle-orm";
 import { db } from "@/db";
 import { products, rawMaterials, saleLines } from "@/db/schema";
 import { UploadForm } from "@/components/upload-form";
-import { importCloses, importInventory, importProducts, importTransactions } from "./actions";
+import { importBagStock, importCloses, importInventory, importProducts, importTransactions } from "./actions";
 
 export const metadata = { title: "Importar · Vitalic Hub" };
 
@@ -49,6 +49,15 @@ export default async function ImportarPage() {
           Cada insumo del archivo queda con esa cantidad desde hoy; los que no estén en el archivo no cambian.
         </p>
         <UploadForm action={importInventory} accept=".xls,.xlsx,.csv" button="Cargar inventario" />
+      </section>
+      <section className="card space-y-2">
+        <h2 className="font-semibold">4. Bolsas listas para vender (stock en la caja)</h2>
+        <p className="text-sm text-muted">
+          La misma existencia de inventario de Vendty (columna Unidades) o tu conteo físico con las columnas <b>Producto</b>,
+          <b> Codigo</b> y <b>Unidades</b>. La caja muestra cuántas bolsas hay de cada producto, las descuenta al vender y
+          el empaque las suma. Los productos que no estén en el archivo no llevan conteo.
+        </p>
+        <UploadForm action={importBagStock} accept=".xls,.xlsx" button="Cargar conteo de bolsas" />
       </section>
     </div>
   );

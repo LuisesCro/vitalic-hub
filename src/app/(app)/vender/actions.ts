@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq, like } from "drizzle-orm";
+import { and, eq, like, or, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/db";
@@ -9,6 +9,7 @@ import { loadComponents, loadRawCosts } from "@/lib/components";
 import { quoteBulk } from "@/lib/bulk";
 import { unitCostFromComponents } from "@/lib/costing";
 import { applyMovement } from "@/lib/inventory";
+import { adjustStockUnits, adjustStockUnitsBySku } from "@/lib/stock-units";
 import { fmtCOP, todayISO } from "@/lib/format";
 import { SALE_LINE_METHOD, cartTotals, isPosMethod, lineGross, settle, soldByWeight, type PosMethod } from "@/lib/pos";
 import { requireAdmin, requireSession } from "@/lib/session";
@@ -121,6 +122,8 @@ export async function createSale(_prev: SaleState, formData: FormData): Promise<
       }
     }
     await tx.insert(saleLines).values(rowsToInsert);
+    // Bolsas listas para vender: baja el conteo de los productos que lo llevan.
+    for (const l of cartLines) if (!soldByWeight(l.p.name)) await adjustStockUnits(tx, l.p.id, -l.quantity);
     return sale.id;
   });
 
@@ -145,8 +148,14 @@ export async function voidSale(formData: FormData) {
   await requireAdmin();
   const id = Number(formData.get("id"));
   const reason = String(formData.get("reason") ?? "").trim() || "Anulada por el administrador";
+  const [target] = await db.select({ returnOf: posSales.returnOf, status: posSales.status }).from(posSales).where(eq(posSales.id, id));
+  if (!target || target.status !== "vigente" || target.returnOf) return;
+  const [hasReturns] = await db.select({ n: sql<number>`count(*)` }).from(posSales).where(and(eq(posSales.returnOf, id), eq(posSales.status, "vigente")));
+  if (Number(hasReturns.n) > 0) return; // con devoluciones ya hechas no se anula completa
   await db.transaction(async (tx) => {
     await tx.update(posSales).set({ status: "anulada", voidReason: reason }).where(eq(posSales.id, id));
+    const sold = await tx.select({ sku: saleLines.sku, quantity: saleLines.quantity, name: saleLines.productName }).from(saleLines).where(eq(saleLines.invoice, `V-${id}`));
+    for (const l of sold) if (!l.sku.startsWith("GRANEL-") && !soldByWeight(l.name)) await adjustStockUnitsBySku(tx, l.sku, l.quantity);
     await tx.update(saleLines).set({ excluded: true, excludedReason: `Venta anulada V-${id}: ${reason}` }).where(eq(saleLines.invoice, `V-${id}`));
     // Granel dentro de la venta: devuelve los kilos al inventario.
     const bulks = await tx.select().from(bulkSales).where(eq(bulkSales.posSaleId, id));
@@ -164,4 +173,104 @@ export async function voidSale(formData: FormData) {
   revalidatePath("/vender");
   revalidatePath("/caja");
   revalidatePath("/");
+}
+
+const ReturnPayload = z.object({
+  saleId: z.number().int().positive(),
+  items: z.array(z.object({ lineId: z.number().int().positive(), qty: z.number().positive() })).min(1, "Elige qué se devuelve"),
+  method: z.string().refine(isPosMethod, "Medio no válido"),
+  reason: z.string().trim().max(200).default(""),
+});
+
+export type ReturnState = { error?: string; receipt?: TicketData; returnId?: number; refund?: number };
+
+/** Devolución parcial (o de toda una venta línea por línea): devuelve el dinero, reintegra bolsas y kilos y descuenta de ventas y utilidad. */
+export async function returnSale(_prev: ReturnState, formData: FormData): Promise<ReturnState> {
+  const session = await requireAdmin();
+  let payload;
+  try {
+    payload = ReturnPayload.parse(JSON.parse(String(formData.get("payload") ?? "{}")));
+  } catch (error) {
+    return { error: error instanceof z.ZodError ? error.issues[0]?.message : "Revisa la devolución" };
+  }
+  const [sale] = await db.select().from(posSales).where(eq(posSales.id, payload.saleId));
+  if (!sale || sale.status !== "vigente" || sale.returnOf) return { error: "Esta venta no admite devoluciones" };
+  const lines = await db.select().from(saleLines).where(and(eq(saleLines.invoice, `V-${sale.id}`), eq(saleLines.excluded, false)));
+  const returns = await db.select({ id: posSales.id }).from(posSales).where(and(eq(posSales.returnOf, sale.id), eq(posSales.status, "vigente")));
+  const priorLines = returns.length
+    ? await db.select().from(saleLines).where(or(...returns.map((r) => eq(saleLines.invoice, `V-${r.id}`))))
+    : [];
+  const returned = new Map<string, number>(); // por clave de la línea original
+  for (const r of priorLines) {
+    const orig = r.externalKey.split("|").slice(1).join("|");
+    returned.set(orig, (returned.get(orig) ?? 0) - r.quantity);
+  }
+
+  const picked: { line: (typeof lines)[number]; qty: number; refund: number }[] = [];
+  for (const it of payload.items) {
+    const line = lines.find((l) => l.id === it.lineId);
+    if (!line) return { error: "Una línea de la devolución no es de esta venta" };
+    const remaining = Math.round((line.quantity - (returned.get(line.externalKey) ?? 0)) * 1000) / 1000;
+    if (it.qty > remaining + 1e-9) return { error: `De «${line.productName}» solo quedan ${remaining.toLocaleString("es-CO")} por devolver` };
+    picked.push({ line, qty: it.qty, refund: Math.round((line.total * it.qty) / line.quantity) });
+  }
+  const refund = picked.reduce((t, p) => t + p.refund, 0);
+  if (refund <= 0) return { error: "No hay nada que devolver" };
+  const now = new Date();
+  const net = picked.reduce((t, p) => t + (p.line.subtotalNet * p.qty) / p.line.quantity, 0);
+
+  const retId = await db.transaction(async (tx) => {
+    const [ret] = await tx
+      .insert(posSales)
+      .values({
+        soldAt: now, businessDate: todayISO(), customer: sale.customer, subtotalNet: -Math.round(net * 100) / 100, tax: -Math.round((refund - net) * 100) / 100,
+        total: -refund, payments: JSON.stringify([{ method: payload.method, amount: -refund }]), createdBy: session.userId, returnOf: sale.id,
+        voidReason: payload.reason || "Devolución",
+      })
+      .returning({ id: posSales.id });
+    await tx.insert(saleLines).values(
+      picked.map((p) => {
+        const subtotal = Math.round(((p.line.subtotalNet * p.qty) / p.line.quantity) * 100) / 100;
+        return {
+          externalKey: `R${ret.id}|${p.line.externalKey}`, invoice: `V-${ret.id}`, soldAt: now, sku: p.line.sku, productName: p.line.productName, category: p.line.category,
+          quantity: -p.qty, unitPriceNet: p.line.unitPriceNet, unitCostNet: p.line.unitCostNet, subtotalNet: -subtotal, tax: -Math.round((p.refund - subtotal) * 100) / 100,
+          total: -p.refund, paymentMethod: SALE_LINE_METHOD[payload.method as PosMethod],
+        };
+      }),
+    );
+    for (const p of picked) {
+      if (p.line.sku.startsWith("GRANEL-")) {
+        // Kilos de vuelta al inventario, en la misma proporción en que se descontaron.
+        const familyId = Number(p.line.sku.slice(7));
+        const [bs] = await tx.select().from(bulkSales).where(and(eq(bulkSales.posSaleId, sale.id), eq(bulkSales.familyId, familyId)));
+        if (!bs) continue;
+        const moves = await tx
+          .select({ rawMaterialId: stockMovements.rawMaterialId, grams: stockMovements.grams })
+          .from(stockMovements)
+          .where(and(eq(stockMovements.kind, "venta"), like(stockMovements.note, `Venta a granel #${bs.id}:%`)));
+        for (const m of moves) {
+          await applyMovement(tx, {
+            rawMaterialId: m.rawMaterialId, occurredOn: todayISO(), kind: "ajuste", grams: (-m.grams * p.qty) / bs.kg,
+            note: `Devolución recibo V-${ret.id} (de V-${sale.id})`, userId: session.userId,
+          });
+        }
+      } else if (!soldByWeight(p.line.productName)) {
+        await adjustStockUnitsBySku(tx, p.line.sku, p.qty);
+      }
+    }
+    return ret.id;
+  });
+
+  revalidatePath("/vender");
+  revalidatePath("/caja");
+  revalidatePath("/inventario");
+  revalidatePath("/");
+  return {
+    returnId: retId, refund,
+    receipt: receiptTicket({
+      id: retId, soldAt: now, seller: session.name, customer: sale.customer, returnOf: sale.id,
+      lines: picked.map((p) => ({ name: p.line.productName, qty: -p.qty, unit: Math.round(p.line.total / p.line.quantity), total: -p.refund, byWeight: soldByWeight(p.line.productName), kg: p.line.sku.startsWith("GRANEL-") })),
+      gross: -refund, discount: 0, total: -refund, payments: [{ method: payload.method as PosMethod, amount: -refund }], cashReceived: null, change: null,
+    }),
+  };
 }
