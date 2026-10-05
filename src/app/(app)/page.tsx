@@ -9,7 +9,7 @@ import { getSettings } from "@/lib/settings";
 import { EmptyState, StatCard, TodoRow } from "@/components/ui";
 import { SalesChart } from "@/components/sales-chart";
 import {
-  IconBag, IconBox, IconCash, IconScale, IconChart, IconReceipt, IconTag, IconTrendDown, IconTrendUp, IconUpload,
+  IconBag, IconBox, IconCash, IconScale, IconCart, IconChart, IconReceipt, IconTag, IconTrendDown, IconTrendUp, IconUpload,
 } from "@/components/icons";
 
 function greeting() {
@@ -176,7 +176,7 @@ export default async function InicioPage() {
       <section>
         <h2 className="mb-2 font-semibold">Accesos rápidos</h2>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <QuickAction href="/compras" icon={<IconReceipt />} title="Subir factura" detail="XML, PDF o foto" />
+          <QuickAction href="/vender" icon={<IconCart />} title="Vender" detail="Cobrar en el mostrador" />
           <QuickAction href="/empaque" icon={<IconBag />} title="Registrar empaque" detail="Granel a bolsas" />
           <QuickAction href="/precios" icon={<IconTag />} title="Revisar precios" detail="Catálogos de competencia" />
           <QuickAction href="/caja/cotizar" icon={<IconScale />} title="Cotizar por kilo" detail="Precio por cantidad o bulto" />

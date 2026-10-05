@@ -70,7 +70,7 @@ export async function requireSession(): Promise<Session> {
 /** Para todo lo que no es la caja: solo administradores. */
 export async function requireAdmin(): Promise<Session> {
   const session = await requireSession();
-  if (session.role !== "admin") redirect("/caja");
+  if (session.role !== "admin") redirect("/vender");
   return session;
 }
 

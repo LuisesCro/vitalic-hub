@@ -21,7 +21,7 @@ export async function login(_prev: LoginState, formData: FormData): Promise<Logi
   }
   const role = isRole(user.role) ? user.role : "cajera";
   await createSession({ userId: user.id, name: user.name, role });
-  redirect(role === "admin" ? "/" : "/caja");
+  redirect(role === "admin" ? "/" : "/vender");
 }
 
 export async function logout() {

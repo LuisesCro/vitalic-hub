@@ -18,7 +18,7 @@ export type TicketData = {
  * Botón + tiquete de 80 mm. Al tocar imprime solo el tiquete por la impresora de recibos;
  * si en el controlador de la impresora está activado "abrir cajón", el cajón abre al imprimir.
  */
-export function PrintTicket({ data, label = "Imprimir tiquete", className = "btn-secondary" }: { data: TicketData; label?: string; className?: string }) {
+export function PrintTicket({ data, label = "Imprimir tiquete", className = "btn-secondary", id }: { data: TicketData; label?: string; className?: string; id?: string }) {
   const ref = useRef<HTMLDivElement>(null);
   // Solo sale el tiquete del botón que se tocó, aunque haya varios en la pantalla.
   function print() {
@@ -29,7 +29,7 @@ export function PrintTicket({ data, label = "Imprimir tiquete", className = "btn
   }
   return (
     <>
-      <button type="button" onClick={print} className={className}>{label}</button>
+      <button type="button" id={id} onClick={print} className={className}>{label}</button>
       <div ref={ref} className="ticket-print" aria-hidden>
         <h1>{B.name}</h1>
         <p className="t-center">

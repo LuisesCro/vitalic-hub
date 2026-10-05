@@ -308,3 +308,25 @@ export const supplierPayments = pgTable(
   },
   (t) => [index("supplier_payments_purchase_idx").on(t.purchaseId)],
 );
+
+// Ventas registradas en la caja de Vitalic Hub. Cada línea también queda en sale_lines
+// (factura "V-<n>") para que reportes, márgenes y consumo las cuenten igual que las de Vendty.
+export const posSales = pgTable(
+  "pos_sales",
+  {
+    id: serial("id").primaryKey(),
+    soldAt: timestamp("sold_at", { withTimezone: true }).defaultNow().notNull(),
+    businessDate: date("business_date", { mode: "string" }).notNull(),
+    customer: text("customer"),
+    subtotalNet: money("subtotal_net").notNull(),
+    tax: money("tax").notNull(),
+    total: money("total").notNull(), // con IVA, lo que paga el cliente
+    payments: text("payments").notNull(), // JSON [{method, amount}] ya sin el cambio
+    cashReceived: money("cash_received"),
+    changeGiven: money("change_given"),
+    status: text("status").notNull().default("vigente"), // vigente | anulada
+    voidReason: text("void_reason"),
+    createdBy: integer("created_by").references(() => users.id),
+  },
+  (t) => [index("pos_sales_date_idx").on(t.businessDate)],
+);

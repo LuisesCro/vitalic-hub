@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { cashMovements, cashSessions, saleLines, users } from "@/db/schema";
+import { cashMovements, cashSessions, posSales, saleLines, users } from "@/db/schema";
+import { CASH_COLUMN, isPosMethod } from "@/lib/pos";
 import {
   MOVEMENT_KINDS, PAYMENT_METHODS, differenceStatus, expectedCash, totalSales, vendtyMethodKey,
   type MovementKind, type PaymentKey, type SalesByMethod,
@@ -24,7 +25,7 @@ async function vendtyDay(date: string) {
   const rows = await db
     .select({ method: saleLines.paymentMethod, total: sql<number>`sum(${saleLines.total})`.mapWith(Number) })
     .from(saleLines)
-    .where(sql`(${saleLines.soldAt} at time zone 'America/Bogota')::date = ${date} and not ${saleLines.excluded}`)
+    .where(sql`(${saleLines.soldAt} at time zone 'America/Bogota')::date = ${date} and not ${saleLines.excluded} and ${saleLines.invoice} not like 'V-%'`)
     .groupBy(saleLines.paymentMethod);
   const byKey: Partial<Record<PaymentKey, number>> = {};
   let mixed = 0;
@@ -33,7 +34,18 @@ async function vendtyDay(date: string) {
     if (key) byKey[key] = (byKey[key] ?? 0) + r.total;
     else mixed += r.total;
   }
-  return { byKey, mixed, total: rows.reduce((t, r) => t + r.total, 0) };
+  let total = rows.reduce((t, r) => t + r.total, 0);
+  // Ventas de la caja de Vitalic Hub: traen el valor exacto de cada medio, también en pagos mixtos.
+  const hub = await db.select({ payments: posSales.payments, total: posSales.total }).from(posSales).where(sql`${posSales.businessDate} = ${date} and ${posSales.status} = 'vigente'`);
+  for (const s of hub) {
+    total += s.total;
+    for (const p of JSON.parse(s.payments) as { method: string; amount: number }[]) {
+      if (!isPosMethod(p.method)) continue;
+      const key = CASH_COLUMN[p.method] as PaymentKey;
+      byKey[key] = (byKey[key] ?? 0) + p.amount;
+    }
+  }
+  return { byKey, mixed, total };
 }
 
 export default async function CajaPage({ searchParams }: { searchParams: Promise<{ fecha?: string }> }) {
@@ -159,7 +171,7 @@ export default async function CajaPage({ searchParams }: { searchParams: Promise
               <h2 className="mb-3 text-lg font-semibold">Cerrar caja</h2>
               {vendty.total > 0 && (
                 <p className="mb-3 text-sm text-muted">
-                  Prellené las ventas con lo importado de Vendty para este día ({fmtCOP(vendty.total)}).
+                  Prellené las ventas con lo registrado en Vitalic Hub (y lo importado de Vendty) para este día ({fmtCOP(vendty.total)}).
                   {vendty.mixed > 0 && ` Hay ${fmtCOP(vendty.mixed)} en pagos mixtos: repártelos a mano.`} Revisa contra el cierre de Vendty.
                 </p>
               )}

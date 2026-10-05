@@ -82,6 +82,23 @@ const STATEMENTS = [
     "created_at" timestamp with time zone DEFAULT now() NOT NULL
   )`,
   sql`CREATE INDEX IF NOT EXISTS "supplier_payments_purchase_idx" ON "supplier_payments" ("purchase_id")`,
+  // 0007_pos
+  sql`CREATE TABLE IF NOT EXISTS "pos_sales" (
+    "id" serial PRIMARY KEY NOT NULL,
+    "sold_at" timestamp with time zone DEFAULT now() NOT NULL,
+    "business_date" date NOT NULL,
+    "customer" text,
+    "subtotal_net" numeric(14, 2) NOT NULL,
+    "tax" numeric(14, 2) NOT NULL,
+    "total" numeric(14, 2) NOT NULL,
+    "payments" text NOT NULL,
+    "cash_received" numeric(14, 2),
+    "change_given" numeric(14, 2),
+    "status" text DEFAULT 'vigente' NOT NULL,
+    "void_reason" text,
+    "created_by" integer REFERENCES "users"("id")
+  )`,
+  sql`CREATE INDEX IF NOT EXISTS "pos_sales_date_idx" ON "pos_sales" ("business_date")`,
   // 0004_granel
   sql`CREATE TABLE IF NOT EXISTS "bulk_sales" (
     "id" serial PRIMARY KEY NOT NULL,
@@ -106,8 +123,8 @@ async function upToDate(): Promise<boolean> {
                (table_name = 'cash_sessions' and column_name = 'sales_breb') or
                (table_name = 'purchases' and column_name in ('payment_term', 'due_date'))))
          + (select count(*) from information_schema.tables
-             where table_schema = 'public' and table_name in ('cash_sessions', 'cash_movements', 'product_families', 'product_components', 'bulk_sales', 'supplier_payments')) as n`);
-  return Number(rows[0]?.n) === 14;
+             where table_schema = 'public' and table_name in ('cash_sessions', 'cash_movements', 'product_families', 'product_components', 'bulk_sales', 'supplier_payments', 'pos_sales')) as n`);
+  return Number(rows[0]?.n) === 15;
 }
 
 let ready: Promise<void> | null = null;

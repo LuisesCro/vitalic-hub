@@ -4,7 +4,7 @@ import Link, { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
-  IconBag, IconBox, IconLayers, IconScale, IconCash, IconChart, IconHome, IconKey, IconLeaf, IconLogout, IconMenu, IconReceipt,
+  IconBag, IconBox, IconLayers, IconScale, IconCart, IconCash, IconChart, IconHome, IconKey, IconLeaf, IconLogout, IconMenu, IconReceipt,
   IconSettings, IconTag, IconUpload, IconX, BrandLogo,
 } from "./icons";
 
@@ -16,6 +16,7 @@ const ADMIN: Group[] = [
     title: "Día a día",
     items: [
       { href: "/", label: "Inicio", icon: IconHome, hint: "Resumen y pendientes" },
+      { href: "/vender", label: "Vender", icon: IconCart, hint: "Cobrar en el mostrador" },
       { href: "/caja", label: "Caja", icon: IconCash, hint: "Apertura y cuadre" },
       { href: "/caja/cotizar", label: "Cotizar", icon: IconScale, hint: "Precio por kilo o bulto" },
       { href: "/compras", label: "Compras", icon: IconReceipt, hint: "Facturas de proveedores" },
@@ -45,6 +46,7 @@ const CASHIER: Group[] = [
   {
     title: "Mi trabajo",
     items: [
+      { href: "/vender", label: "Vender", icon: IconCart },
       { href: "/caja", label: "Caja", icon: IconCash },
       { href: "/caja/cotizar", label: "Cotizar", icon: IconScale },
       { href: "/ajustes", label: "Mi clave", icon: IconKey },
@@ -52,7 +54,7 @@ const CASHIER: Group[] = [
   },
 ];
 
-const BOTTOM_ADMIN = ["/", "/caja", "/compras", "/inventario"];
+const BOTTOM_ADMIN = ["/", "/vender", "/caja", "/compras"];
 
 /** Ícono del menú que se vuelve un indicador girando apenas se toca, mientras llega la pantalla. */
 function NavIcon({ icon: Icon, className }: { icon: Item["icon"]; className: string }) {
@@ -85,7 +87,7 @@ export function AppShell({
   const current = all.find((i) => isActive(path, i.href));
 
   const Brand = (
-    <Link href={role === "admin" ? "/" : "/caja"} className="flex items-end gap-2" aria-label="Vitalic Hub, inicio">
+    <Link href={role === "admin" ? "/" : "/vender"} className="flex items-end gap-2" aria-label="Vitalic Hub, inicio">
       <BrandLogo className="h-8 w-auto" />
       <span className="mb-0.5 rounded-md bg-leaf-500 px-1.5 py-0.5 font-[family-name:var(--font-brand)] text-[11px] font-bold leading-none text-leaf-800">HUB</span>
     </Link>

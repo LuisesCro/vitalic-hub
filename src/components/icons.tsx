@@ -11,6 +11,7 @@ export const IconReceipt = ({ className }: P) => <svg {...base(className)}><path
 export const IconBox = ({ className }: P) => <svg {...base(className)}><path d="M3 7.5 12 3l9 4.5v9L12 21l-9-4.5z" /><path d="m3 7.5 9 4.5 9-4.5M12 12v9" /></svg>;
 export const IconLayers = ({ className }: P) => <svg {...base(className)}><path d="m12 3 9 5-9 5-9-5z" /><path d="m3 13 9 5 9-5" /></svg>;
 export const IconScale = ({ className }: P) => <svg {...base(className)}><path d="M12 3v18M7 21h10M5 7h14" /><path d="m5 7-3 7a3 3 0 0 0 6 0zM19 7l-3 7a3 3 0 0 0 6 0z" /></svg>;
+export const IconCart = ({ className }: P) => <svg {...base(className)}><circle cx="9" cy="20" r="1.5" /><circle cx="18" cy="20" r="1.5" /><path d="M2 3h3l2.6 12.4a2 2 0 0 0 2 1.6h8.1a2 2 0 0 0 2-1.5L21 8H6" /></svg>;
 export const IconBag = ({ className }: P) => <svg {...base(className)}><path d="M6 7h12l-1 14H7z" /><path d="M9 7a3 3 0 0 1 6 0" /></svg>;
 export const IconTag = ({ className }: P) => <svg {...base(className)}><path d="M3 12V3h9l9 9-9 9z" /><circle cx="7.5" cy="7.5" r="1.5" /></svg>;
 export const IconLeaf = ({ className }: P) => <svg {...base(className)}><path d="M5 19c0-9 5-14 15-15-1 10-6 15-15 15z" /><path d="M5 19 13 11" /></svg>;
