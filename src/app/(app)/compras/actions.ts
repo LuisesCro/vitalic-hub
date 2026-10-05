@@ -4,7 +4,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
-import { purchaseLines, purchases, rawMaterials, supplierItemMap, suppliers } from "@/db/schema";
+import { purchaseLines, purchases, rawMaterials, stockMovements, supplierItemMap, suppliers } from "@/db/schema";
 import { readInvoiceWithAI, type ImageMediaType } from "@/lib/ai-invoice";
 import { parseDianFile, type ParsedInvoice } from "@/lib/dian";
 import { applyMovement } from "@/lib/inventory";
@@ -203,6 +203,52 @@ export async function confirmPurchase(formData: FormData) {
       }
     }
     await tx.update(purchases).set({ status: "confirmada", confirmedAt: new Date() }).where(eq(purchases.id, purchaseId));
+  });
+  revalidatePath("/", "layout");
+  redirect(`/compras/${purchaseId}`);
+}
+
+/**
+ * Factura ya confirmada con líneas que quedaron sin sumar al inventario (sin insumo o sin kilos):
+ * las completa. Si esos kilos ya estaban en un conteo físico, solo se actualiza el costo del insumo.
+ */
+export async function completePurchaseLines(formData: FormData) {
+  const session = await requireAdmin();
+  const purchaseId = Number(formData.get("purchaseId"));
+  const alreadyCounted = formData.get("alreadyCounted") === "on";
+  const edits = readLineEdits(formData);
+  await db.transaction(async (tx) => {
+    const [purchase] = await tx.select().from(purchases).where(eq(purchases.id, purchaseId)).for("update");
+    if (!purchase || purchase.status !== "confirmada") return;
+    const lines = await tx.select().from(purchaseLines).where(eq(purchaseLines.purchaseId, purchaseId));
+    const done = new Set(
+      (await tx.select({ id: stockMovements.purchaseLineId }).from(stockMovements).where(inArray(stockMovements.purchaseLineId, lines.map((l) => l.id)))).map((m) => m.id),
+    );
+    const date = purchase.issueDate ?? todayISO();
+    for (const line of lines) {
+      if (done.has(line.id)) continue; // esa línea ya sumó al inventario
+      const e = edits.find((x) => x.id === line.id);
+      if (!e || !e.rawMaterialId || !e.kgPerUnit || line.quantity <= 0) continue;
+      await tx.update(purchaseLines).set({ rawMaterialId: e.rawMaterialId, kgPerUnit: e.kgPerUnit }).where(eq(purchaseLines.id, line.id));
+      const kg = line.quantity * e.kgPerUnit;
+      await applyMovement(tx, {
+        rawMaterialId: e.rawMaterialId, occurredOn: date, kind: "entrada", grams: kg * 1000, costPerKg: line.lineTotal / kg,
+        purchaseLineId: line.id, note: `Factura ${purchase.invoiceNumber ?? purchase.id} (línea completada después)`, userId: session.userId,
+      });
+      if (alreadyCounted) {
+        // Los kilos ya estaban en el conteo físico: se deja la existencia como estaba y solo queda el costo.
+        await applyMovement(tx, {
+          rawMaterialId: e.rawMaterialId, occurredOn: todayISO(), kind: "ajuste", grams: -kg * 1000,
+          note: `Ya contado en el inventario físico (factura ${purchase.invoiceNumber ?? purchase.id})`, userId: session.userId,
+        });
+      }
+      if (purchase.supplierId) {
+        await tx
+          .insert(supplierItemMap)
+          .values({ supplierId: purchase.supplierId, matchKey: lineKey(line.supplierCode, line.description), rawMaterialId: e.rawMaterialId, kgPerUnit: e.kgPerUnit })
+          .onConflictDoUpdate({ target: [supplierItemMap.supplierId, supplierItemMap.matchKey], set: { rawMaterialId: e.rawMaterialId, kgPerUnit: e.kgPerUnit } });
+      }
+    }
   });
   revalidatePath("/", "layout");
   redirect(`/compras/${purchaseId}`);

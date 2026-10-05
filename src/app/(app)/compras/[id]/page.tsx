@@ -1,14 +1,14 @@
 import { requireAdmin } from "@/lib/session";
-import { asc, eq } from "drizzle-orm";
+import { asc, eq, inArray } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { db } from "@/db";
-import { purchaseLines, purchases, rawMaterials, supplierPayments, suppliers, users } from "@/db/schema";
+import { purchaseLines, purchases, rawMaterials, stockMovements, supplierPayments, suppliers, users } from "@/db/schema";
 import { fmtCOP, fmtNum, todayISO } from "@/lib/format";
 import { PAYMENT_METHODS_SUPPLIER, daysUntil, payStatus, type SupplierPaymentMethod } from "@/lib/payables";
 import { PayForm } from "../pay-form";
 import { deleteSupplierPayment, updatePaymentTerms } from "../payments";
 import { PayBadge } from "../status-badge";
-import { confirmPurchase, deleteDraft, saveDraft } from "../actions";
+import { completePurchaseLines, confirmPurchase, deleteDraft, saveDraft } from "../actions";
 
 export default async function CompraPage({ params }: { params: Promise<{ id: string }> }) {
   await requireAdmin();
@@ -23,6 +23,12 @@ export default async function CompraPage({ params }: { params: Promise<{ id: str
   const p = purchase.p;
   const lines = await db.select().from(purchaseLines).where(eq(purchaseLines.purchaseId, id)).orderBy(asc(purchaseLines.id));
   const materials = await db.select({ id: rawMaterials.id, name: rawMaterials.name }).from(rawMaterials).orderBy(asc(rawMaterials.name));
+  // Líneas de una factura confirmada que sí sumaron al inventario (las demás se pueden completar).
+  const entered = new Set(
+    lines.length
+      ? (await db.select({ id: stockMovements.purchaseLineId }).from(stockMovements).where(inArray(stockMovements.purchaseLineId, lines.map((l) => l.id)))).map((m) => m.id)
+      : [],
+  );
   const locked = p.status === "confirmada";
   const payments = await db
     .select({ pay: supplierPayments, by: users.name })
@@ -111,6 +117,7 @@ export default async function CompraPage({ params }: { params: Promise<{ id: str
         <div className="space-y-3">
           {lines.map((l) => {
             const kg = l.kgPerUnit ? l.quantity * l.kgPerUnit : null;
+            const lineLocked = locked && entered.has(l.id);
             return (
               <div key={l.id} className="card grid gap-3 sm:grid-cols-[2fr_1fr_1fr]">
                 <div>
@@ -122,14 +129,14 @@ export default async function CompraPage({ params }: { params: Promise<{ id: str
                 </div>
                 <label>
                   <span className="label">Insumo</span>
-                  <select name={`raw-${l.id}`} defaultValue={l.rawMaterialId ?? ""} disabled={locked} className="input">
+                  <select name={`raw-${l.id}`} defaultValue={l.rawMaterialId ?? ""} disabled={lineLocked} className="input">
                     <option value="">No va al inventario</option>
                     {materials.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
                   </select>
                 </label>
                 <label>
                   <span className="label">Kg por unidad</span>
-                  <input name={`kg-${l.id}`} inputMode="decimal" defaultValue={l.kgPerUnit ?? ""} disabled={locked} className="input" placeholder="ej. 22,68" />
+                  <input name={`kg-${l.id}`} inputMode="decimal" defaultValue={l.kgPerUnit ?? ""} disabled={lineLocked} className="input" placeholder="ej. 22,68" />
                 </label>
               </div>
             );
@@ -142,9 +149,22 @@ export default async function CompraPage({ params }: { params: Promise<{ id: str
             <button formAction={deleteDraft} className="btn-secondary text-red-600">Descartar</button>
           </div>
         ) : (
-          <p className="text-sm text-green-700 dark:text-green-400">
-            Confirmada. Los kilos ya entraron al inventario y la próxima factura de este proveedor se reconocerá sola.
-          </p>
+          <div className="space-y-3">
+            <p className="text-sm text-green-700 dark:text-green-400">
+              Confirmada. Los kilos ya entraron al inventario y la próxima factura de este proveedor se reconocerá sola.
+            </p>
+            {lines.some((l) => !entered.has(l.id)) && (
+              <div className="card space-y-2">
+                <p className="text-sm">
+                  Las líneas con insumo y kilos por unidad que no habían sumado al inventario se pueden completar aquí: elige el insumo y los kg por unidad y pulsa el botón.
+                </p>
+                <label className="flex items-center gap-2 text-sm">
+                  <input type="checkbox" name="alreadyCounted" /> Esos kilos ya estaban en el conteo físico (solo actualizar el costo del insumo)
+                </label>
+                <button formAction={completePurchaseLines} className="btn-secondary">Sumar al inventario las líneas que faltaron</button>
+              </div>
+            )}
+          </div>
         )}
       </form>
     </div>
