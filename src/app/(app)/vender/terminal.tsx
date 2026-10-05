@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useMemo, useRef, useState } from "react";
+import { ProductPouch } from "@/components/product-pouch";
 import { PrintTicket, type TicketData } from "@/components/ticket";
 import { quoteFromTiers, type PublicQuoteItem } from "@/lib/bulk";
 import { fmtCOP } from "@/lib/format";
@@ -164,8 +165,9 @@ export function PosTerminal({ products, quick, isAdmin, bulkItems, settings }: {
             <ul className="max-h-80 divide-y divide-[var(--border)] overflow-y-auto rounded-xl border border-[var(--border)]">
               {matches.map((p) => (
                 <li key={p.id}>
-                  <button type="button" onClick={() => add(p)} className="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left hover:bg-[var(--surface-2)]">
-                    <span className="min-w-0"><span className="block truncate font-medium">{p.name}</span><span className="block truncate text-xs text-muted">{p.category ?? ""}</span></span>
+                  <button type="button" onClick={() => add(p)} className="flex w-full items-center gap-3 px-3 py-2 text-left hover:bg-[var(--surface-2)]">
+                    <ProductPouch name={p.name} size={44} />
+                    <span className="min-w-0 flex-1"><span className="block truncate font-medium">{p.name}</span><span className="block truncate text-xs text-muted">{p.category ?? ""}</span></span>
                     <span className="shrink-0 font-semibold tabular-nums">{fmtCOP(p.priceGross)}{p.byWeight ? "/g" : ""}</span>
                   </button>
                 </li>
@@ -192,11 +194,14 @@ export function PosTerminal({ products, quick, isAdmin, bulkItems, settings }: {
         </div>
         <div className="card">
           <p className="label">Los más vendidos</p>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-2 min-[420px]:grid-cols-2 2xl:grid-cols-3">
             {quick.map((id) => byId.get(id)).filter((p): p is PosProduct => !!p).map((p) => (
-              <button key={p.id} type="button" onClick={() => add(p)} className="rounded-xl border border-[var(--border)] p-2 text-left transition-colors hover:border-brand-500 hover:bg-[var(--surface-2)]">
-                <span className="line-clamp-2 block text-sm font-medium leading-tight">{p.name}</span>
-                <span className="mt-1 block text-sm font-semibold tabular-nums text-brand-700 dark:text-brand-500">{fmtCOP(p.priceGross)}{p.byWeight ? "/g" : ""}</span>
+              <button key={p.id} type="button" onClick={() => add(p)} className="flex items-center gap-2 rounded-xl border border-[var(--border)] p-1.5 text-left transition-colors hover:border-brand-500 hover:bg-[var(--surface-2)]">
+                <span className="flex shrink-0 items-center justify-center rounded-lg bg-brand-50 p-1 dark:bg-[var(--surface-2)]"><ProductPouch name={p.name} size={52} /></span>
+                <span className="min-w-0">
+                  <span className="line-clamp-2 block text-sm font-medium leading-tight">{p.name}</span>
+                  <span className="mt-0.5 block text-sm font-semibold tabular-nums text-brand-700 dark:text-brand-500">{fmtCOP(p.priceGross)}{p.byWeight ? "/g" : ""}</span>
+                </span>
               </button>
             ))}
           </div>
