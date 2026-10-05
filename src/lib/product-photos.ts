@@ -81,6 +81,16 @@ const PHOTOS: [string, string][] = [
   ["Sal himalaya gruesa", "sal-himalaya-gruesa.webp"],
   ["Sal limón", "sal-limon.webp"],
   ["Sal himalaya delgada", "sal-himalaya-delgada.webp"],
+  ["Amaranto", "amaranto.webp"],
+  ["Ajonjolí negro", "ajonjoli-negro.webp"],
+  ["Semilla amapola", "semilla-amapola.webp"],
+  ["Semilla calabaza", "semilla-calabaza.webp"],
+  ["Quinoa", "quinoa.webp"],
+  ["Semilla de anís", "semilla-de-anis.webp"],
+  ["Semillas de girasol", "semillas-de-girasol.webp"],
+  ["Ajonjolí descortezado", "ajonjoli-descortezado.webp"],
+  ["Ajonjolí", "ajonjoli-descortezado.webp"],
+  ["Quinua", "quinoa.webp"],
 ];
 
 const norm = (t: string) => t.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
