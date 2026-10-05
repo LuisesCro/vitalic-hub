@@ -8,6 +8,7 @@ import {
 } from "@/lib/cash";
 import { fmtCOP, todayISO } from "@/lib/format";
 import { requireSession } from "@/lib/session";
+import { PrintTicket } from "@/components/ticket";
 import { CloseForm } from "./close-form";
 import { addCashMovement, deleteCash, deleteCashMovement, openCash, reopenCash } from "./actions";
 
@@ -281,6 +282,23 @@ function ClosedSummary({
       <p className="text-sm text-muted">
         Cerró {closedBy ?? "—"}. Base para el día siguiente: {fmtCOP(s.nextBase)}.{s.closingNote ? ` Nota: ${s.closingNote}` : ""}
       </p>
+      <PrintTicket
+        label="Imprimir cierre de caja"
+        data={{
+          title: "CIERRE DE CAJA",
+          date: new Date(s.businessDate + "T12:00:00").toLocaleDateString("es-CO"),
+          rows: [{ label: "Cerró", value: closedBy ?? "—" }, { label: "Base inicial", value: fmtCOP(s.openingCash) }],
+          items: PAYMENT_METHODS.filter((m) => s[m.key] > 0).map((m) => ({ name: m.label, detail: "", total: s[m.key] })),
+          totals: [
+            { label: "Total vendido", value: fmtCOP(totalSales(sales)), big: true },
+            { label: "Debería haber", value: fmtCOP(expected) },
+            { label: "Contado", value: fmtCOP(s.countedCash) },
+            { label: "Diferencia", value: `${fmtCOP(diff)} ${status}`, big: true },
+            { label: "Base para mañana", value: fmtCOP(s.nextBase) },
+          ],
+          footer: "Firma: ____________________",
+        }}
+      />
       {canReopen ? (
         <form action={reopenCash}>
           <input type="hidden" name="id" value={s.id} />

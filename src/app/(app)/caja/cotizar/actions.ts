@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq, like } from "drizzle-orm";
+import { and, desc, eq, like } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { bulkSales, stockMovements } from "@/db/schema";
@@ -11,7 +11,8 @@ import { requireSession } from "@/lib/session";
 import { getSettings } from "@/lib/settings";
 import { quoteItems } from "./data";
 
-export type BulkState = { ok?: string; error?: string };
+export type BulkReceipt = { id: number; date: string; product: string; kg: number; total: number; perKg: number; customer: string | null; seller: string };
+export type BulkState = { ok?: string; error?: string; receipt?: BulkReceipt };
 
 const num = (v: FormDataEntryValue | null) => Number(String(v ?? "").replace(/\./g, "").replace(",", ".")) || 0;
 
@@ -46,7 +47,9 @@ export async function registerBulkSale(_prev: BulkState, formData: FormData): Pr
   });
   revalidatePath("/caja/cotizar");
   revalidatePath("/inventario");
+  const receiptId = (await db.select({ id: bulkSales.id }).from(bulkSales).orderBy(desc(bulkSales.id)).limit(1))[0]?.id ?? 0;
   return {
+    receipt: { id: receiptId, date: today, product: item.name, kg, total, perKg: Math.round(total / kg), customer, seller: session.name },
     ok: `Registrado: ${kg.toLocaleString("es-CO")} kg de ${item.name} por ${fmtCOP(total)}. Ya se descontó del inventario. Factúralo en Vendty: producto «${item.name} x kg», cantidad ${kg.toLocaleString("es-CO")}, precio por kilo ${fmtCOP(Math.round(total / kg))}.`,
   };
 }

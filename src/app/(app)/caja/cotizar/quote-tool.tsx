@@ -4,6 +4,7 @@ import { useActionState, useMemo, useState } from "react";
 import { profitOf, tierFor } from "@/lib/bulk";
 import { fmtCOP, fmtPct } from "@/lib/format";
 import type { Settings } from "@/lib/settings-defaults";
+import { PrintTicket } from "@/components/ticket";
 import { registerBulkSale, type BulkState } from "./actions";
 import type { PublicQuoteItem as QuoteItem } from "./data";
 
@@ -123,6 +124,20 @@ export function QuoteTool({ items, settings, isAdmin }: { items: QuoteItem[]; se
             )}
           </div>
 
+          <div className="flex flex-wrap items-center gap-3">
+            <PrintTicket
+              label="Imprimir cotización"
+              data={{
+                title: "COTIZACIÓN",
+                date: new Date().toLocaleDateString("es-CO"),
+                items: [{ name: picked.name, detail: `${kg.toLocaleString("es-CO")} kg × ${fmtCOP(quote.pricePerKg)}`, total: quote.total }],
+                totals: [{ label: "TOTAL", value: fmtCOP(quote.total), big: true }],
+                footer: "Precio válido solo el día de hoy. Incluye IVA.",
+              }}
+            />
+            <span className="text-xs text-muted">Para entregarle al cliente el precio por escrito.</span>
+          </div>
+
           <form action={action} className="space-y-3 border-t border-[var(--border)] pt-4">
             <h3 className="font-semibold">¿El cliente lo lleva?</h3>
             <input type="hidden" name="familyId" value={picked.familyId} />
@@ -154,7 +169,25 @@ export function QuoteTool({ items, settings, isAdmin }: { items: QuoteItem[]; se
         </section>
       )}
 
-      {state.ok && <p className="rounded-lg px-3 py-2 text-sm" style={{ background: "var(--good-bg)", color: "var(--good)" }}>{state.ok}</p>}
+      {state.ok && (
+        <div className="space-y-2">
+          <p className="rounded-lg px-3 py-2 text-sm" style={{ background: "var(--good-bg)", color: "var(--good)" }}>{state.ok}</p>
+          {state.receipt && (
+            <PrintTicket
+              label="Imprimir recibo de la venta"
+              className="btn-primary"
+              data={{
+                title: "RECIBO DE VENTA",
+                number: `G-${state.receipt.id}`,
+                date: new Date(state.receipt.date + "T12:00:00").toLocaleDateString("es-CO"),
+                rows: [...(state.receipt.customer ? [{ label: "Cliente", value: state.receipt.customer }] : []), { label: "Atendió", value: state.receipt.seller }],
+                items: [{ name: state.receipt.product, detail: `${state.receipt.kg.toLocaleString("es-CO")} kg × ${fmtCOP(state.receipt.perKg)}`, total: state.receipt.total }],
+                totals: [{ label: "TOTAL", value: fmtCOP(state.receipt.total), big: true }],
+              }}
+            />
+          )}
+        </div>
+      )}
       {state.error && <p className="rounded-lg px-3 py-2 text-sm" style={{ background: "var(--bad-bg)", color: "var(--bad)" }}>{state.error}</p>}
     </div>
   );
