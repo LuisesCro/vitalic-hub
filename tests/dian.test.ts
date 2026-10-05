@@ -9,6 +9,7 @@ const invoice = `<?xml version="1.0" encoding="UTF-8"?>
   <cbc:ID>FE-659184</cbc:ID>
   <cbc:UUID schemeName="CUFE-SHA384">abc123cufe</cbc:UUID>
   <cbc:IssueDate>2026-09-24</cbc:IssueDate>
+  <cac:PaymentMeans><cbc:ID>2</cbc:ID><cbc:PaymentMeansCode>ZZZ</cbc:PaymentMeansCode><cbc:PaymentDueDate>2026-10-24</cbc:PaymentDueDate></cac:PaymentMeans>
   <cac:AccountingSupplierParty><cac:Party>
     <cac:PartyTaxScheme><cbc:RegistrationName>PRODUCTOS 3A SAS</cbc:RegistrationName><cbc:CompanyID schemeID="7">900123456</cbc:CompanyID></cac:PartyTaxScheme>
   </cac:Party></cac:AccountingSupplierParty>
@@ -61,5 +62,13 @@ describe("parseDianXml", () => {
   it("abre el .zip del correo", () => {
     const zip = zipSync({ "ad0900123456.xml": strToU8(attached), "factura.pdf": strToU8("%PDF") });
     expect(parseDianFile("z.zip", zip).cufe).toBe("abc123cufe");
+  });
+});
+
+describe("forma de pago", () => {
+  it("lee crédito y vencimiento", () => {
+    const parsed = parseDianXml(invoice);
+    expect(parsed.paymentTerm).toBe("credito");
+    expect(parsed.dueDate).toBe("2026-10-24");
   });
 });

@@ -99,6 +99,8 @@ async function createDraft(parsed: ParsedInvoice, source: "xml" | "foto", rawXml
         invoiceNumber: parsed.invoiceNumber,
         cufe: parsed.cufe,
         issueDate: parsed.issueDate,
+        paymentTerm: parsed.paymentTerm ?? null,
+        dueDate: parsed.dueDate ?? (parsed.paymentTerm === "contado" ? parsed.issueDate : null),
         subtotal: parsed.subtotal,
         tax: parsed.tax,
         total: parsed.total,

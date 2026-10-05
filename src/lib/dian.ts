@@ -8,6 +8,8 @@ export type ParsedInvoice = {
   invoiceNumber: string | null;
   cufe: string | null;
   issueDate: string | null; // AAAA-MM-DD
+  dueDate?: string | null; // vencimiento del pago
+  paymentTerm?: "contado" | "credito" | null;
   subtotal: number;
   tax: number;
   total: number;
@@ -100,6 +102,11 @@ export function parseDianXml(xml: string): ParsedInvoice {
     };
   });
 
+  // Forma de pago DIAN: PaymentMeans/ID 1 = contado, 2 = crédito; vencimiento en PaymentDueDate o DueDate.
+  const meansId = text(get(invoice, "PaymentMeans", "ID"));
+  const paymentTerm = meansId === "1" ? "contado" : meansId === "2" ? "credito" : null;
+  const dueDate = text(get(invoice, "PaymentMeans", "PaymentDueDate")) ?? text(get(invoice, "DueDate"));
+
   const totals = get(invoice, "LegalMonetaryTotal");
   const subtotal = num(get(totals, "LineExtensionAmount"));
   const total = num(get(totals, "PayableAmount")) || num(get(totals, "TaxInclusiveAmount"));
@@ -112,6 +119,8 @@ export function parseDianXml(xml: string): ParsedInvoice {
     invoiceNumber: text(get(invoice, "ID")),
     cufe: text(get(invoice, "UUID")),
     issueDate: text(get(invoice, "IssueDate")),
+    dueDate,
+    paymentTerm,
     subtotal,
     tax,
     total,

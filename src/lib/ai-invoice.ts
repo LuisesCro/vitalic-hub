@@ -9,6 +9,8 @@ const InvoiceSchema = z.object({
   supplierNit: z.string().nullable().describe("NIT del proveedor sin dígito de verificación ni puntos"),
   invoiceNumber: z.string().nullable(),
   issueDate: z.string().nullable().describe("Fecha de la factura en formato AAAA-MM-DD"),
+  dueDate: z.string().nullable().describe("Fecha de vencimiento del pago en formato AAAA-MM-DD, si aparece"),
+  paymentTerm: z.enum(["contado", "credito"]).nullable().describe("Forma de pago: contado o crédito, si aparece"),
   subtotal: z.number().describe("Total antes de IVA en pesos"),
   tax: z.number().describe("Total de IVA en pesos"),
   total: z.number().describe("Total a pagar en pesos"),

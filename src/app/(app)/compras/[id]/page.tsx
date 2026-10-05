@@ -2,8 +2,12 @@ import { requireAdmin } from "@/lib/session";
 import { asc, eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { db } from "@/db";
-import { purchaseLines, purchases, rawMaterials, suppliers } from "@/db/schema";
-import { fmtCOP, fmtNum } from "@/lib/format";
+import { purchaseLines, purchases, rawMaterials, supplierPayments, suppliers, users } from "@/db/schema";
+import { fmtCOP, fmtNum, todayISO } from "@/lib/format";
+import { PAYMENT_METHODS_SUPPLIER, daysUntil, payStatus, type SupplierPaymentMethod } from "@/lib/payables";
+import { PayForm } from "../pay-form";
+import { deleteSupplierPayment, updatePaymentTerms } from "../payments";
+import { PayBadge } from "../status-badge";
 import { confirmPurchase, deleteDraft, saveDraft } from "../actions";
 
 export default async function CompraPage({ params }: { params: Promise<{ id: string }> }) {
@@ -20,6 +24,16 @@ export default async function CompraPage({ params }: { params: Promise<{ id: str
   const lines = await db.select().from(purchaseLines).where(eq(purchaseLines.purchaseId, id)).orderBy(asc(purchaseLines.id));
   const materials = await db.select({ id: rawMaterials.id, name: rawMaterials.name }).from(rawMaterials).orderBy(asc(rawMaterials.name));
   const locked = p.status === "confirmada";
+  const payments = await db
+    .select({ pay: supplierPayments, by: users.name })
+    .from(supplierPayments)
+    .leftJoin(users, eq(supplierPayments.createdBy, users.id))
+    .where(eq(supplierPayments.purchaseId, id))
+    .orderBy(asc(supplierPayments.paidOn), asc(supplierPayments.id));
+  const today = todayISO();
+  const paid = payments.reduce((t, x) => t + x.pay.amount, 0);
+  const pay = payStatus(p.total, paid, p.dueDate, today);
+  const due = daysUntil(p.dueDate, today);
   const linesTotal = lines.reduce((s, l) => s + l.lineTotal, 0);
 
   return (
@@ -37,8 +51,59 @@ export default async function CompraPage({ params }: { params: Promise<{ id: str
         )}
       </div>
 
+      <section className="card space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="font-semibold">Pago al proveedor</h2>
+          <PayBadge status={pay.status} daysOverdue={pay.daysOverdue} />
+        </div>
+        <div className="grid grid-cols-3 gap-3 text-sm">
+          <div><p className="label">Total factura</p><p className="font-semibold">{fmtCOP(p.total)}</p></div>
+          <div><p className="label">Pagado</p><p className="font-semibold">{fmtCOP(paid)}</p></div>
+          <div><p className="label">Saldo</p><p className="font-semibold" style={{ color: pay.balance > 0 ? "var(--bad)" : "var(--good)" }}>{fmtCOP(pay.balance)}</p></div>
+        </div>
+        <form action={updatePaymentTerms} className="flex flex-wrap items-end gap-3">
+          <input type="hidden" name="purchaseId" value={p.id} />
+          <label>
+            <span className="label">Forma de pago</span>
+            <select name="paymentTerm" defaultValue={p.paymentTerm ?? ""} className="input">
+              <option value="">Sin definir</option>
+              <option value="contado">Contado</option>
+              <option value="credito">Crédito</option>
+            </select>
+          </label>
+          <label>
+            <span className="label">Vence</span>
+            <input type="date" name="dueDate" defaultValue={p.dueDate ?? ""} className="input" />
+          </label>
+          <button className="btn-secondary">Guardar</button>
+          {pay.balance > 0 && due !== null && (
+            <span className="text-sm" style={{ color: due < 0 ? "var(--bad)" : due <= 7 ? "var(--warn)" : "var(--muted)" }}>
+              {due < 0 ? `Vencida hace ${-due} días` : due === 0 ? "Vence hoy" : `Vence en ${due} días`}
+            </span>
+          )}
+        </form>
+        {payments.length > 0 && (
+          <ul className="divide-y divide-[var(--border)] text-sm">
+            {payments.map(({ pay: x, by }) => (
+              <li key={x.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                <span>
+                  <strong>{fmtCOP(x.amount)}</strong> · {PAYMENT_METHODS_SUPPLIER[x.method as SupplierPaymentMethod] ?? x.method} · {x.paidOn}
+                  <span className="text-muted">{[x.note, by, x.cashMovementId ? "desde la caja" : null].filter(Boolean).map((t) => ` · ${t}`).join("")}</span>
+                </span>
+                <form action={deleteSupplierPayment}>
+                  <input type="hidden" name="id" value={x.id} />
+                  <button className="text-xs text-muted underline">Borrar</button>
+                </form>
+              </li>
+            ))}
+          </ul>
+        )}
+        <PayForm purchaseId={p.id} balance={pay.balance} today={today} />
+      </section>
+
       <form className="space-y-4">
         <input type="hidden" name="purchaseId" value={p.id} />
+        <h2 className="font-semibold">Productos e inventario</h2>
         <label className="block max-w-xs">
           <span className="label">Fecha de la factura</span>
           <input type="date" name="issueDate" defaultValue={p.issueDate ?? ""} disabled={locked} className="input" />

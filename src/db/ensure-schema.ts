@@ -67,6 +67,21 @@ const STATEMENTS = [
   sql`ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "paused_by_family" boolean DEFAULT false NOT NULL`,
   // 0005_breb
   sql`ALTER TABLE "cash_sessions" ADD COLUMN IF NOT EXISTS "sales_breb" numeric(14, 2) DEFAULT 0 NOT NULL`,
+  // 0006_cuentas_por_pagar
+  sql`ALTER TABLE "purchases" ADD COLUMN IF NOT EXISTS "payment_term" text`,
+  sql`ALTER TABLE "purchases" ADD COLUMN IF NOT EXISTS "due_date" date`,
+  sql`CREATE TABLE IF NOT EXISTS "supplier_payments" (
+    "id" serial PRIMARY KEY NOT NULL,
+    "purchase_id" integer NOT NULL REFERENCES "purchases"("id") ON DELETE CASCADE,
+    "paid_on" date NOT NULL,
+    "amount" numeric(14, 2) NOT NULL,
+    "method" text NOT NULL,
+    "note" text,
+    "cash_movement_id" integer,
+    "created_by" integer REFERENCES "users"("id"),
+    "created_at" timestamp with time zone DEFAULT now() NOT NULL
+  )`,
+  sql`CREATE INDEX IF NOT EXISTS "supplier_payments_purchase_idx" ON "supplier_payments" ("purchase_id")`,
   // 0004_granel
   sql`CREATE TABLE IF NOT EXISTS "bulk_sales" (
     "id" serial PRIMARY KEY NOT NULL,
@@ -88,10 +103,11 @@ async function upToDate(): Promise<boolean> {
              where table_schema = 'public' and (
                (table_name = 'users' and column_name in ('role', 'active')) or
                (table_name = 'products' and column_name in ('family_id', 'format', 'paused_by_family')) or
-               (table_name = 'cash_sessions' and column_name = 'sales_breb')))
+               (table_name = 'cash_sessions' and column_name = 'sales_breb') or
+               (table_name = 'purchases' and column_name in ('payment_term', 'due_date'))))
          + (select count(*) from information_schema.tables
-             where table_schema = 'public' and table_name in ('cash_sessions', 'cash_movements', 'product_families', 'product_components', 'bulk_sales')) as n`);
-  return Number(rows[0]?.n) === 11;
+             where table_schema = 'public' and table_name in ('cash_sessions', 'cash_movements', 'product_families', 'product_components', 'bulk_sales', 'supplier_payments')) as n`);
+  return Number(rows[0]?.n) === 14;
 }
 
 let ready: Promise<void> | null = null;

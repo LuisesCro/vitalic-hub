@@ -1,8 +1,8 @@
 import { requireAdmin } from "@/lib/session";
 import Link from "next/link";
-import { count, eq } from "drizzle-orm";
+import { count, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { cashSessions, purchases, rawMaterials } from "@/db/schema";
+import { cashSessions, purchases, rawMaterials, supplierPayments } from "@/db/schema";
 import { fmtCOP, fmtMonth, fmtPct, todayISO } from "@/lib/format";
 import { expensesByMonth, monthlySales, productPerformance, rawMaterialConsumption, trackedRawMaterialIds } from "@/lib/reports";
 import { getSettings } from "@/lib/settings";
@@ -32,6 +32,12 @@ export default async function InicioPage() {
   const [pending] = await db.select({ n: count() }).from(purchases).where(eq(purchases.status, "borrador"));
   const s = await getSettings();
   const tracked = await trackedRawMaterialIds();
+  // Facturas de proveedores vencidas con saldo.
+  const [overdue] = await db.execute<{ n: string; saldo: string }>(sql`
+    select count(*) as n, coalesce(sum(p.total - coalesce(pg.paid, 0)), 0) as saldo
+    from ${purchases} p
+    left join (select purchase_id, sum(amount) as paid from ${supplierPayments} group by purchase_id) pg on pg.purchase_id = p.id
+    where p.due_date < ${todayISO()} and p.total - coalesce(pg.paid, 0) >= 100`);
   const [cash] = await db
     .select({ status: cashSessions.status, opening: cashSessions.openingCash })
     .from(cashSessions)
@@ -114,6 +120,13 @@ export default async function InicioPage() {
               done={pending.n === 0}
               title={pending.n === 0 ? "Sin facturas por revisar" : `${pending.n} ${pending.n === 1 ? "factura" : "facturas"} por confirmar`}
               detail={pending.n ? "Confírmalas para que entren al inventario" : undefined}
+            />
+            <TodoRow
+              href="/compras?vista=vencidas"
+              icon={<IconReceipt />}
+              done={Number(overdue?.n ?? 0) === 0}
+              title={Number(overdue?.n ?? 0) === 0 ? "Pagos a proveedores al día" : `${overdue!.n} facturas vencidas por ${fmtCOP(Number(overdue!.saldo))}`}
+              detail={Number(overdue?.n ?? 0) ? "Revísalas en Compras → Vencidas" : undefined}
             />
             <TodoRow
               href="/inventario"

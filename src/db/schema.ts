@@ -108,7 +108,9 @@ export const purchases = pgTable("purchases", {
   tax: money("tax").notNull().default(0),
   total: money("total").notNull().default(0),
   source: text("source").notNull(), // xml | foto | manual
-  status: text("status").notNull().default("borrador"), // borrador | confirmada
+  status: text("status").notNull().default("borrador"), // borrador | confirmada (inventario)
+  paymentTerm: text("payment_term"), // contado | credito
+  dueDate: date("due_date", { mode: "string" }),
   rawXml: text("raw_xml"),
   createdBy: integer("created_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -287,3 +289,22 @@ export const bulkSales = pgTable("bulk_sales", {
   createdBy: integer("created_by").references(() => users.id),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
+
+// Pagos y abonos a facturas de proveedores (cuentas por pagar).
+export const supplierPayments = pgTable(
+  "supplier_payments",
+  {
+    id: serial("id").primaryKey(),
+    purchaseId: integer("purchase_id")
+      .notNull()
+      .references(() => purchases.id, { onDelete: "cascade" }),
+    paidOn: date("paid_on", { mode: "string" }).notNull(),
+    amount: money("amount").notNull(),
+    method: text("method").notNull(), // efectivo | transferencia | nequi | daviplata | breb | otro
+    note: text("note"),
+    cashMovementId: integer("cash_movement_id"), // si salió del efectivo de la caja
+    createdBy: integer("created_by").references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [index("supplier_payments_purchase_idx").on(t.purchaseId)],
+);
