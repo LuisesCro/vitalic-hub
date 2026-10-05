@@ -15,8 +15,8 @@ export const metadata = { title: "Vender · Vitalic Hub" };
 export default async function VenderPage() {
   const session = await requireSession();
   const today = todayISO();
-  const { all, quick } = await posProducts();
   const settings = await getSettings();
+  const { all, quick } = await posProducts();
   const bulkItems = toPublic(await quoteItems(), settings, false);
   const sales = await todaySales(today);
   const valid = sales.filter((s) => s.status === "vigente");
@@ -39,8 +39,11 @@ export default async function VenderPage() {
                   <td>{s.seller ?? "—"}</td>
                   <td className="space-x-2 whitespace-nowrap">
                     {s.status === "vigente" && <PrintTicket data={s.ticket} label="Reimprimir" className="text-sm underline" />}
-                    {s.status === "vigente" && session.role === "admin" && !s.returnOf && s.lines.some((l) => l.quantity - l.returned > 0) && (
-                      <ReturnForm saleId={s.id} number={s.number} lines={s.lines} defaultMethod={s.payments.find((p) => p.amount > 0)?.method ?? "efectivo"} />
+                    {s.status === "vigente" && !s.returnOf && s.lines.some((l) => l.quantity - l.returned > 0) && (
+                      <ReturnForm
+                        saleId={s.id} number={s.number} lines={s.lines} defaultMethod={s.payments.find((p) => p.amount > 0)?.method ?? "efectivo"}
+                        maxRefund={session.role === "admin" ? undefined : settings.devolucionMaxCajera}
+                      />
                     )}
                     {s.status === "vigente" && session.role === "admin" && !s.returnOf && !s.hasReturns && (
                       <form action={voidSale} className="inline">

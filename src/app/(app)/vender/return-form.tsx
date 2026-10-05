@@ -11,7 +11,7 @@ const METHODS: PosMethod[] = ["efectivo", "tarjeta", "nequi", "daviplata", "breb
 const qtyText = (n: number) => n.toLocaleString("es-CO", { maximumFractionDigits: 3 });
 
 /** Devolución parcial de una venta: eliges cuánto de cada línea vuelve y por qué medio se devuelve el dinero. */
-export function ReturnForm({ saleId, number, lines, defaultMethod }: { saleId: number; number: string; lines: SaleLineInfo[]; defaultMethod: PosMethod }) {
+export function ReturnForm({ saleId, number, lines, defaultMethod, maxRefund }: { saleId: number; number: string; lines: SaleLineInfo[]; defaultMethod: PosMethod; maxRefund?: number }) {
   const [state, action, pending] = useActionState<ReturnState, FormData>(returnSale, {});
   const [qty, setQty] = useState<Record<number, string>>({});
   const [method, setMethod] = useState<PosMethod>(defaultMethod);
@@ -72,6 +72,9 @@ export function ReturnForm({ saleId, number, lines, defaultMethod }: { saleId: n
         </div>
         <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Motivo (opcional)" className="input" />
         <p className="text-sm">Se devuelven <strong>{fmtCOP(refund)}</strong> en {POS_METHODS[method].toLowerCase()}.</p>
+        {maxRefund !== undefined && refund > maxRefund && (
+          <p className="text-sm" style={{ color: "var(--warn)" }}>Puedes devolver hasta {fmtCOP(maxRefund)} por vez. Para más, pide autorización a Luis o Paula.</p>
+        )}
         {state.error && <p className="rounded-lg px-3 py-2 text-sm" style={{ background: "var(--bad-bg)", color: "var(--bad)" }}>{state.error}</p>}
         {state.returnId && state.receipt && (
           <p className="rounded-lg px-3 py-2 text-sm" style={{ background: "var(--good-bg)", color: "var(--good)" }}>
@@ -79,7 +82,7 @@ export function ReturnForm({ saleId, number, lines, defaultMethod }: { saleId: n
             <PrintTicket id={`print-return-${state.returnId}`} data={state.receipt} label="Imprimir comprobante" className="underline" />
           </p>
         )}
-        <button className="btn-primary w-full" disabled={pending || items.length === 0}>{pending ? "Registrando…" : "Registrar devolución"}</button>
+        <button className="btn-primary w-full" disabled={pending || items.length === 0 || (maxRefund !== undefined && refund > maxRefund)}>{pending ? "Registrando…" : "Registrar devolución"}</button>
       </form>
     </details>
   );

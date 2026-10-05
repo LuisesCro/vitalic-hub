@@ -21,6 +21,8 @@ export const DEFAULT_SETTINGS = {
   margenGranelPiso: 0.2,
   // Descuento máximo que la cajera puede dar al cobrar (los administradores no tienen tope).
   descuentoMaxCajera: 0.05,
+  // Valor máximo de una devolución que la cajera puede hacer sola, de ventas del mismo día (en pesos).
+  devolucionMaxCajera: 30000,
 } as const;
 
 export type SettingKey = keyof typeof DEFAULT_SETTINGS;
@@ -53,4 +55,5 @@ export const SETTING_LABELS: Record<SettingKey, { label: string; kind: "pct" | "
   margenGranel3: { label: "Margen por kilo, bulto", kind: "pct" },
   margenGranelPiso: { label: "Margen mínimo al negociar por kilo (precio más bajo que ve la caja)", kind: "pct" },
   descuentoMaxCajera: { label: "Descuento máximo que puede dar la cajera al cobrar", kind: "pct" },
+  devolucionMaxCajera: { label: "Devolución máxima que puede hacer la cajera sola (en pesos, ventas del mismo día)", kind: "cop" },
 };

@@ -186,7 +186,8 @@ export type ReturnState = { error?: string; receipt?: TicketData; returnId?: num
 
 /** Devolución parcial (o de toda una venta línea por línea): devuelve el dinero, reintegra bolsas y kilos y descuenta de ventas y utilidad. */
 export async function returnSale(_prev: ReturnState, formData: FormData): Promise<ReturnState> {
-  const session = await requireAdmin();
+  const session = await requireSession();
+  const isAdmin = session.role === "admin";
   let payload;
   try {
     payload = ReturnPayload.parse(JSON.parse(String(formData.get("payload") ?? "{}")));
@@ -195,6 +196,8 @@ export async function returnSale(_prev: ReturnState, formData: FormData): Promis
   }
   const [sale] = await db.select().from(posSales).where(eq(posSales.id, payload.saleId));
   if (!sale || sale.status !== "vigente" || sale.returnOf) return { error: "Esta venta no admite devoluciones" };
+  // La cajera solo devuelve ventas del mismo día; las anteriores las autoriza Luis o Paula.
+  if (!isAdmin && sale.businessDate !== todayISO()) return { error: "Esta venta no es de hoy. Pide autorización a Luis o Paula para devolverla." };
   const lines = await db.select().from(saleLines).where(and(eq(saleLines.invoice, `V-${sale.id}`), eq(saleLines.excluded, false)));
   const returns = await db.select({ id: posSales.id }).from(posSales).where(and(eq(posSales.returnOf, sale.id), eq(posSales.status, "vigente")));
   const priorLines = returns.length
@@ -216,6 +219,10 @@ export async function returnSale(_prev: ReturnState, formData: FormData): Promis
   }
   const refund = picked.reduce((t, p) => t + p.refund, 0);
   if (refund <= 0) return { error: "No hay nada que devolver" };
+  if (!isAdmin) {
+    const cap = (await getSettings()).devolucionMaxCajera;
+    if (refund > cap) return { error: `Puedes devolver hasta ${fmtCOP(cap)} por vez. Para ${fmtCOP(refund)}, pide autorización a Luis o Paula.` };
+  }
   const now = new Date();
   const net = picked.reduce((t, p) => t + (p.line.subtotalNet * p.qty) / p.line.quantity, 0);
 
