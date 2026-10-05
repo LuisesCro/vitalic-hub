@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef } from "react";
+import { BUSINESS as B } from "@/lib/business";
 import { fmtCOP } from "@/lib/format";
 
 export type TicketData = {
@@ -30,8 +31,14 @@ export function PrintTicket({ data, label = "Imprimir tiquete", className = "btn
     <>
       <button type="button" onClick={print} className={className}>{label}</button>
       <div ref={ref} className="ticket-print" aria-hidden>
-        <h1>VITALIC</h1>
-        <p className="t-center">Frutos secos, especias y condimentos<br />Barrio Alameda · Cali<br />VITALIC SAS · NIT 901967570<br />@vitalic_market</p>
+        <h1>{B.name}</h1>
+        <p className="t-center">
+          NIT: {B.nit}<br />
+          {B.address} · {B.city}<br />
+          Tel: {B.phone}<br />
+          {B.email}<br />
+          Instagram: {B.instagram}
+        </p>
         <div className="t-line" />
         <p className="t-center t-big">{data.title}</p>
         <div className="t-row"><span>{data.date}</span>{data.number && <span>N.º {data.number}</span>}</div>
@@ -48,7 +55,6 @@ export function PrintTicket({ data, label = "Imprimir tiquete", className = "btn
         <div className="t-line" />
         <p className="t-center">{data.footer ?? "¡Gracias por tu compra!"}</p>
         <p className="t-center">Comprobante de control interno</p>
-        <p className="t-center">www.vitalicmarket.com</p>
         <br /><br />
       </div>
     </>
