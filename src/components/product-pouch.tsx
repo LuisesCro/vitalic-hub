@@ -36,41 +36,72 @@ export function pouchLook(name: string) {
   return LOOKS.find((l) => l.re.test(n)) ?? { kind: "round" as Kind, c1: "#9fb8ad", c2: "#6f8a7e" };
 }
 
-function sizeLabel(name: string): string {
-  const m = norm(name).match(/(\d+(?:[.,]\d+)?)\s*(kg|gr|g)\b/);
-  return m ? `${m[1]}${m[2] === "kg" ? "kg" : "g"}` : "";
+
+
+// Pseudo-aleatorio estable: el mismo producto siempre se ve igual.
+const rnd = (i: number, salt: number) => { const x = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453; return x - Math.floor(x); };
+
+/** Posiciones del montículo: filas que se van estrechando hacia arriba. */
+function mound(kind: Kind) {
+  const dense = kind === "dots";
+  const rows = dense
+    ? [[41, 11, 89, 26], [37, 12, 88, 25], [33, 15, 85, 22], [29, 18, 82, 20], [25, 22, 78, 17], [21, 27, 73, 14], [17, 33, 67, 10], [14, 40, 60, 6]]
+    : [[39, 13, 87, 9], [33, 15, 85, 8], [27, 19, 81, 7], [22, 24, 76, 6], [17, 30, 70, 5], [13, 38, 62, 3]];
+  const pts: { x: number; y: number; i: number }[] = [];
+  let i = 0;
+  for (const [y, x0, x1, n] of rows) {
+    for (let k = 0; k < n; k++) {
+      pts.push({ x: x0 + ((x1 - x0) * (k + 0.5)) / n + (rnd(i, 1) - 0.5) * 3, y: y + (rnd(i, 2) - 0.5) * 3, i });
+      i++;
+    }
+  }
+  return pts;
 }
 
-function contents(kind: Kind, c1: string, c2: string) {
+function Item({ kind, x, y, i, c1, c2 }: { kind: Kind; x: number; y: number; i: number; c1: string; c2: string }) {
+  const fill = i % 2 ? c1 : c2;
+  const rot = Math.round((rnd(i, 3) - 0.5) * 120);
+  const g = `url(#sh-${kind})`;
+  const t = `translate(${x} ${y}) rotate(${rot}) scale(1.25)`;
   switch (kind) {
     case "nut":
-      return (<><ellipse cx="30" cy="62" rx="9" ry="6" fill={c1} transform="rotate(-20 30 62)" /><ellipse cx="46" cy="58" rx="9" ry="6" fill={c2} transform="rotate(15 46 58)" /><ellipse cx="38" cy="70" rx="9" ry="6" fill={c1} transform="rotate(-5 38 70)" /><ellipse cx="52" cy="70" rx="8" ry="5.5" fill={c2} transform="rotate(25 52 70)" /><ellipse cx="26" cy="74" rx="8" ry="5.5" fill={c2} /></>);
+      return (<g transform={t}><path d="M-7 0 C-7 -6 5 -7 8 0 C5 6 -7 6 -7 0Z" fill={fill} /><path d="M-7 0 C-7 -6 5 -7 8 0 C5 6 -7 6 -7 0Z" fill={g} /><path d="M-4 -1.5 C-1 -3.5 3 -3.5 5 -1.2" stroke="#fff" strokeOpacity=".45" strokeWidth="1" fill="none" strokeLinecap="round" /></g>);
     case "round":
-      return (<><circle cx="30" cy="62" r="7" fill={c1} /><circle cx="45" cy="58" r="7" fill={c2} /><circle cx="38" cy="72" r="7" fill={c1} /><circle cx="53" cy="70" r="6.5" fill={c2} /><circle cx="25" cy="75" r="6.5" fill={c2} /></>);
+      return (<g transform={t}><circle r="5.6" fill={fill} /><circle r="5.6" fill={g} /><circle cx="-1.8" cy="-2" r="1.5" fill="#fff" fillOpacity=".5" /></g>);
     case "dots":
-      return <>{Array.from({ length: 34 }, (_, i) => <circle key={i} cx={20 + ((i * 17) % 38)} cy={55 + ((i * 11) % 26)} r="2.6" fill={i % 3 ? c1 : c2} />)}</>;
+      return (<g transform={t}><ellipse rx="2.5" ry="1.8" fill={fill} /><ellipse cx="-.7" cy="-.6" rx="1" ry=".6" fill="#fff" fillOpacity=".4" /></g>);
     case "stick":
-      return (<><rect x="20" y="58" width="42" height="7" rx="3.5" fill={c1} transform="rotate(-12 40 62)" /><rect x="22" y="68" width="42" height="7" rx="3.5" fill={c2} transform="rotate(8 40 72)" /><rect x="24" y="78" width="38" height="6" rx="3" fill={c1} /></>);
+      return (<g transform={`translate(${x} ${y}) rotate(${Math.round((rnd(i, 3) - 0.5) * 50)}) scale(1.1)`}><rect x="-11" y="-2.6" width="22" height="5.2" rx="2.6" fill={fill} /><rect x="-11" y="-2.6" width="22" height="5.2" rx="2.6" fill={g} /><circle cx="11" cy="0" r="2.4" fill={c2} /><circle cx="11" cy="0" r="1" fill={c1} /><path d="M-8 -.6 H8" stroke="#fff" strokeOpacity=".3" strokeWidth=".8" /></g>);
     case "leaf":
-      return (<><path d="M24 76 q6-22 16-14 q-2 14-16 14z" fill={c1} /><path d="M40 82 q4-22 18-14 q-4 14-18 14z" fill={c2} /><path d="M30 64 q10-10 18-2 q-6 10-18 2z" fill={c1} /></>);
+      return (<g transform={t}><path d="M-8 0 C-4 -7 4 -7 8 0 C4 7 -4 7 -8 0Z" fill={fill} /><path d="M-7 0 H7" stroke="#fff" strokeOpacity=".35" strokeWidth=".9" /><path d="M-8 0 C-4 -7 4 -7 8 0 C4 7 -4 7 -8 0Z" fill={g} /></g>);
     case "kidney":
-      return (<><path d="M24 66 q6-10 14-4 q-4 10-14 4z" fill={c1} /><path d="M42 62 q8-8 14 0 q-6 10-14 0z" fill={c2} /><path d="M30 78 q6-10 14-4 q-4 10-14 4z" fill={c2} /><path d="M48 80 q8-8 12 0 q-6 8-12 0z" fill={c1} /></>);
+      return (<g transform={t}><path d="M-7 1 C-8 -5 0 -7 6 -4 C9 -2 8 2 4 3 C0 1 -3 4 -7 1Z" fill={fill} /><path d="M-7 1 C-8 -5 0 -7 6 -4 C9 -2 8 2 4 3 C0 1 -3 4 -7 1Z" fill={g} /><path d="M-4 -3 C-1 -5 3 -4 5 -3" stroke="#fff" strokeOpacity=".45" strokeWidth="1" fill="none" strokeLinecap="round" /></g>);
   }
 }
 
-/** Ilustración de la bolsa Vitalic con el producto en la ventanita. */
+/** Bowl de cerámica con el producto servido encima. */
 export function ProductPouch({ name, size = 56 }: { name: string; size?: number }) {
   const { kind, c1, c2 } = pouchLook(name);
-  const label = sizeLabel(name);
+  const pts = mound(kind);
   return (
-    <svg viewBox="0 0 76 100" width={size * 0.76} height={size} role="img" aria-label={name} className="shrink-0">
-      <path d="M12 8h52l4 8-3 76q0 6-6 6H17q-6 0-6-6L8 16z" fill="#1c7a8c" />
-      <path d="M12 8h52l4 8H8z" fill="#11505c" />
-      <rect x="14" y="20" width="48" height="12" rx="3" fill="#fff" opacity=".95" />
-      <text x="38" y="29.5" textAnchor="middle" fontFamily="Quicksand, sans-serif" fontWeight="700" fontSize="8" fill="#186878">vitalic</text>
-      <rect x="16" y="40" width="44" height="46" rx="8" fill="#eef7f4" />
-      <g>{contents(kind, c1, c2)}</g>
-      {label && <text x="38" y="94" textAnchor="middle" fontSize="6" fontWeight="700" fill="#fff" fontFamily="sans-serif">{label}</text>}
+    <svg viewBox="0 0 100 80" width={size} height={size * 0.8} role="img" aria-label={name} className="shrink-0">
+      <defs>
+        <radialGradient id="sh-round" cx=".35" cy=".3" r=".8"><stop offset="0" stopColor="#fff" stopOpacity=".25" /><stop offset="1" stopColor="#000" stopOpacity=".28" /></radialGradient>
+        <linearGradient id="sh-nut" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#fff" stopOpacity=".18" /><stop offset="1" stopColor="#000" stopOpacity=".3" /></linearGradient>
+        <linearGradient id="sh-kidney" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#fff" stopOpacity=".18" /><stop offset="1" stopColor="#000" stopOpacity=".28" /></linearGradient>
+        <linearGradient id="sh-leaf" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#fff" stopOpacity=".15" /><stop offset="1" stopColor="#000" stopOpacity=".25" /></linearGradient>
+        <linearGradient id="sh-stick" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#fff" stopOpacity=".2" /><stop offset="1" stopColor="#000" stopOpacity=".3" /></linearGradient>
+        <linearGradient id="sh-dots" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#fff" stopOpacity=".1" /><stop offset="1" stopColor="#000" stopOpacity=".2" /></linearGradient>
+        <linearGradient id="bowl" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stopColor="#d9e8e4" /><stop offset=".35" stopColor="#ffffff" /><stop offset="1" stopColor="#c4d8d3" /></linearGradient>
+      </defs>
+      <ellipse cx="50" cy="75" rx="30" ry="3.2" fill="#000" opacity=".12" />
+      <path d="M8 42 H92 C92 66 74 74 50 74 C26 74 8 66 8 42Z" fill="url(#bowl)" />
+      <path d="M14 56 C30 64 70 64 86 56" stroke="#1c7a8c" strokeWidth="2.2" fill="none" strokeLinecap="round" opacity=".85" />
+      <ellipse cx="50" cy="42" rx="42" ry="7" fill="#eaf1ef" />
+      <ellipse cx="50" cy="42" rx="40" ry="5.5" fill={c2} />
+      <g>{pts.map((p) => <Item key={p.i} kind={kind} x={p.x} y={p.y} i={p.i} c1={c1} c2={c2} />)}</g>
+      <path d="M8 42 Q50 52 92 42" fill="none" stroke="#fff" strokeWidth="1.4" opacity=".9" />
+      <path d="M10 43 Q50 54 90 43 L89 46 Q50 57 11 46Z" fill="#f4f8f7" />
     </svg>
   );
 }
