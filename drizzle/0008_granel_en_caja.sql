@@ -1,0 +1,1 @@
+ALTER TABLE "bulk_sales" ADD COLUMN "pos_sale_id" integer;

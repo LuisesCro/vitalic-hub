@@ -27,7 +27,7 @@ export async function posProducts(): Promise<{ all: PosProduct[]; quick: number[
 export type TodaySale = { id: number; number: string; time: string; total: number; status: string; payments: { method: PosMethod; amount: number }[]; seller: string | null; ticket: TicketData };
 
 export function receiptTicket(opts: {
-  id: number; soldAt: Date; seller: string | null; customer: string | null; lines: { name: string; qty: number; unit: number; total: number; byWeight: boolean }[];
+  id: number; soldAt: Date; seller: string | null; customer: string | null; lines: { name: string; qty: number; unit: number; total: number; byWeight: boolean; kg?: boolean }[];
   gross: number; discount: number; total: number; payments: { method: PosMethod; amount: number }[]; cashReceived: number | null; change: number | null; voided?: boolean;
 }): TicketData {
   const fmt = (n: number) => n.toLocaleString("es-CO", { maximumFractionDigits: 3 });
@@ -36,7 +36,7 @@ export function receiptTicket(opts: {
     number: `V-${opts.id}`,
     date: opts.soldAt.toLocaleString("es-CO", { timeZone: "America/Bogota", dateStyle: "short", timeStyle: "short" }),
     rows: [...(opts.seller ? [{ label: "Atendió", value: opts.seller }] : []), ...(opts.customer ? [{ label: "Cliente", value: opts.customer }] : [])],
-    items: opts.lines.map((l) => ({ name: l.name, detail: `${fmt(l.qty)}${l.byWeight ? " g" : ""} × ${fmtCOP(l.unit)}`, total: l.total })),
+    items: opts.lines.map((l) => ({ name: l.name, detail: `${fmt(l.qty)}${l.byWeight ? " g" : l.kg ? " kg" : ""} × ${fmtCOP(l.unit)}${l.kg ? "/kg" : ""}`, total: l.total })),
     totals: [
       ...(opts.discount > 0 ? [{ label: "Subtotal", value: fmtCOP(opts.gross) }, { label: "Descuento", value: `-${fmtCOP(opts.discount)}` }] : []),
       { label: "TOTAL", value: fmtCOP(opts.total), big: true },
@@ -67,7 +67,7 @@ export async function todaySales(date: string): Promise<TodaySale[]> {
       time: s.soldAt.toLocaleTimeString("es-CO", { timeZone: "America/Bogota", hour: "2-digit", minute: "2-digit" }),
       ticket: receiptTicket({
         id: s.id, soldAt: s.soldAt, seller, customer: s.customer, gross: Math.max(gross, s.total), discount: Math.max(0, gross - s.total), total: s.total,
-        lines: mine.map((l) => ({ name: l.productName, qty: l.quantity, unit: Math.round(l.total / (l.quantity || 1)), total: l.total, byWeight: soldByWeight(l.productName) })),
+        lines: mine.map((l) => ({ name: l.productName, qty: l.quantity, unit: Math.round(l.total / (l.quantity || 1)), total: l.total, byWeight: soldByWeight(l.productName), kg: l.sku.startsWith("GRANEL-") })),
         payments, cashReceived: s.cashReceived, change: s.changeGiven, voided: s.status === "anulada",
       }),
     };

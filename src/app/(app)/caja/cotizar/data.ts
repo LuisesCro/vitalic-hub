@@ -54,16 +54,8 @@ export async function quoteItems(): Promise<QuoteItem[]> {
   return out;
 }
 
-export type PublicQuoteItem = {
-  familyId: number;
-  name: string;
-  ivaRate: number;
-  retailPerKg: number | null;
-  stockKg: number | null;
-  tiers: { pricePerKg: number; capped: boolean }[]; // niveles 1, 2 y 3
-  floorPerKg: number;
-  costPerKg?: number; // solo administradores
-};
+export type { PublicQuoteItem } from "@/lib/bulk";
+import type { PublicQuoteItem } from "@/lib/bulk";
 
 /** Lo que llega al navegador: precios por nivel ya calculados; el costo solo si es administrador. */
 export function toPublic(items: QuoteItem[], s: Settings, isAdmin: boolean): PublicQuoteItem[] {

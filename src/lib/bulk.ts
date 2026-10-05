@@ -60,3 +60,29 @@ export function profitOf(totalGross: number, ivaRate: number, cost: number) {
   const profit = net - cost;
   return { net, cost, profit, margin: net > 0 ? profit / net : 0, markup: cost > 0 ? profit / cost : 0 };
 }
+
+/** Producto cotizable por kilo, tal como llega al navegador: precios por nivel ya calculados, sin costos. */
+export type PublicQuoteItem = {
+  familyId: number;
+  name: string;
+  ivaRate: number;
+  retailPerKg: number | null;
+  stockKg: number | null;
+  tiers: { pricePerKg: number; capped: boolean }[]; // niveles 1, 2 y 3
+  floorPerKg: number;
+  costPerKg?: number; // solo administradores
+};
+
+/** Misma cuenta que el servidor, con los precios por nivel que ya vienen calculados. */
+export function quoteFromTiers(item: PublicQuoteItem, kg: number, s: Settings) {
+  const { tier, margin, label } = tierFor(kg, s);
+  const level = item.tiers[tier - 1];
+  const total = ceilTo(level.pricePerKg * kg, 500);
+  const floorPerKg = Math.min(item.floorPerKg, level.pricePerKg);
+  const retailTotal = item.retailPerKg ? Math.round(item.retailPerKg * kg) : null;
+  return {
+    tierLabel: label, margin, pricePerKg: level.pricePerKg, total, cappedByRetail: level.capped,
+    floorPerKg, floorTotal: ceilTo(floorPerKg * kg, 500),
+    retailTotal, savings: retailTotal ? 1 - total / retailTotal : null,
+  };
+}

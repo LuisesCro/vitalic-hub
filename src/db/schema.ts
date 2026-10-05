@@ -286,6 +286,7 @@ export const bulkSales = pgTable("bulk_sales", {
   totalGross: money("total_gross").notNull(), // lo que pagó el cliente, con IVA
   suggestedGross: money("suggested_gross").notNull(),
   customer: text("customer"),
+  posSaleId: integer("pos_sale_id"), // si se vendió dentro de una venta de la caja
   createdBy: integer("created_by").references(() => users.id),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });

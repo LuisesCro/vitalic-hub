@@ -3,6 +3,8 @@ import { PrintTicket } from "@/components/ticket";
 import { fmtCOP, todayISO } from "@/lib/format";
 import { POS_METHODS } from "@/lib/pos";
 import { requireSession } from "@/lib/session";
+import { getSettings } from "@/lib/settings";
+import { quoteItems, toPublic } from "../caja/cotizar/data";
 import { voidSale } from "./actions";
 import { posProducts, todaySales } from "./data";
 import { PosTerminal } from "./terminal";
@@ -13,13 +15,15 @@ export default async function VenderPage() {
   const session = await requireSession();
   const today = todayISO();
   const { all, quick } = await posProducts();
+  const settings = await getSettings();
+  const bulkItems = toPublic(await quoteItems(), settings, false);
   const sales = await todaySales(today);
   const valid = sales.filter((s) => s.status === "vigente");
   const sold = valid.reduce((t, s) => t + s.total, 0);
   return (
     <div className="space-y-4">
       <PageHeader title="Vender" subtitle={`Hoy: ${valid.length} ventas por ${fmtCOP(sold)}`} />
-      <PosTerminal products={all} quick={quick} isAdmin={session.role === "admin"} />
+      <PosTerminal products={all} quick={quick} isAdmin={session.role === "admin"} bulkItems={bulkItems} settings={settings} />
       {sales.length > 0 && (
         <section className="card overflow-x-auto">
           <h2 className="mb-2 font-semibold">Ventas de hoy</h2>

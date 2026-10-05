@@ -1,23 +1,27 @@
 "use server";
 
-import { eq } from "drizzle-orm";
+import { and, eq, like } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/db";
-import { posSales, products, saleLines } from "@/db/schema";
+import { bulkSales, posSales, products, saleLines, stockMovements } from "@/db/schema";
 import { loadComponents, loadRawCosts } from "@/lib/components";
+import { quoteBulk } from "@/lib/bulk";
 import { unitCostFromComponents } from "@/lib/costing";
-import { todayISO } from "@/lib/format";
+import { applyMovement } from "@/lib/inventory";
+import { fmtCOP, todayISO } from "@/lib/format";
 import { SALE_LINE_METHOD, cartTotals, isPosMethod, lineGross, settle, soldByWeight, type PosMethod } from "@/lib/pos";
 import { requireAdmin, requireSession } from "@/lib/session";
 import { getSettings } from "@/lib/settings";
+import { quoteItems } from "../caja/cotizar/data";
 import { receiptTicket } from "./data";
 import type { TicketData } from "@/components/ticket";
 
 export type SaleState = { error?: string; receipt?: TicketData; saleId?: number; change?: number };
 
 const Payload = z.object({
-  lines: z.array(z.object({ productId: z.number().int().positive(), quantity: z.number().positive().max(100000) })).min(1, "El carrito está vacío"),
+  lines: z.array(z.object({ productId: z.number().int().positive(), quantity: z.number().positive().max(100000) })).default([]),
+  bulkLines: z.array(z.object({ familyId: z.number().int().positive(), kg: z.number().positive().max(2000), total: z.number().positive().max(200000000) })).default([]),
   discount: z.number().min(0).default(0),
   customer: z.string().trim().max(120).nullable().optional(),
   payments: z.array(z.object({ method: z.string().refine(isPosMethod, "Medio de pago no válido"), amount: z.number().min(0) })),
@@ -32,7 +36,8 @@ export async function createSale(_prev: SaleState, formData: FormData): Promise<
   } catch (error) {
     return { error: error instanceof z.ZodError ? error.issues[0]?.message : "Revisa la venta" };
   }
-  const discount = session.role === "admin" ? payload.discount : 0; // solo administradores dan descuento
+  if (payload.lines.length + payload.bulkLines.length === 0) return { error: "El carrito está vacío" };
+  const isAdmin = session.role === "admin";
 
   const ids = [...new Set(payload.lines.map((l) => l.productId))];
   const rows = await db.select().from(products);
@@ -44,11 +49,32 @@ export async function createSale(_prev: SaleState, formData: FormData): Promise<
   });
   if (cartLines.some((l) => !(l.p.active && l.p.priceNet > 0))) return { error: "Hay un producto inactivo o sin precio en el carrito" };
 
-  const totals = cartTotals(cartLines.map((l) => ({ unitGross: l.unitGross, quantity: l.quantity, ivaRate: l.ivaRate })), discount);
+  const settings = await getSettings();
+  // Granel / bulto: el precio sugerido sale del servidor; la cajera no puede bajar del precio mínimo.
+  const quotes = payload.bulkLines.length ? await quoteItems() : [];
+  const bulkCart: { item: (typeof quotes)[number]; kg: number; total: number; suggested: number }[] = [];
+  for (const b of payload.bulkLines) {
+    const item = quotes.find((q) => q.familyId === b.familyId);
+    const quote = item && quoteBulk({ kg: b.kg, costPerKg: item.costPerKg, ivaRate: item.ivaRate, retailPerKg: item.retailPerKg, settings });
+    if (!item || !quote) return { error: "Un producto a granel ya no se puede vender (revisa su receta y costo)" };
+    const total = Math.round(b.total);
+    if (!isAdmin && total < quote.floorTotal) return { error: `El mínimo para ${b.kg} kg de ${item.name} es ${fmtCOP(quote.floorTotal)}. Pide autorización a Luis o Paula.` };
+    bulkCart.push({ item, kg: b.kg, total, suggested: quote.total });
+  }
+  const productGross = cartLines.reduce((t, l) => t + lineGross({ unitGross: l.unitGross, quantity: l.quantity, ivaRate: l.ivaRate }), 0);
+  // La cajera puede dar un descuento pequeño sobre productos; el granel ya trae su margen ajustado.
+  const maxDiscount = isAdmin ? Infinity : Math.floor(productGross * settings.descuentoMaxCajera);
+  if (payload.discount > maxDiscount) return { error: `Tu descuento máximo es ${fmtCOP(maxDiscount)} (${Math.round(settings.descuentoMaxCajera * 100)} %). Para más, pide autorización a Luis o Paula.` };
+  const discount = payload.discount;
+
+  const totals = cartTotals(
+    [...cartLines.map((l) => ({ unitGross: l.unitGross, quantity: l.quantity, ivaRate: l.ivaRate })), ...bulkCart.map((b) => ({ unitGross: b.total, quantity: 1, ivaRate: b.item.ivaRate }))],
+    discount,
+  );
+
   const paid = settle(totals.total, payload.payments.map((p) => ({ method: p.method as PosMethod, amount: p.amount })));
   if (!paid.ok) return { error: paid.error };
 
-  const settings = await getSettings();
   const recipes = await loadComponents();
   const rawCosts = await loadRawCosts();
   const factor = totals.gross > 0 ? totals.total / totals.gross : 0;
@@ -75,6 +101,25 @@ export async function createSale(_prev: SaleState, formData: FormData): Promise<
         total: gross, paymentMethod: methodLabel,
       };
     });
+    for (const [j, b] of bulkCart.entries()) {
+      const gross = Math.round(b.total * factor);
+      const net = Math.round((gross / (1 + b.item.ivaRate)) * 100) / 100;
+      rowsToInsert.push({
+        externalKey: `V-${sale.id}|GRANEL-${b.item.familyId}|g${j + 1}`, invoice: `V-${sale.id}`, soldAt: now, sku: `GRANEL-${b.item.familyId}`, productName: `${b.item.name} x kg`, category: "Granel",
+        quantity: b.kg, unitPriceNet: Math.round((net / b.kg) * 100) / 100, unitCostNet: b.item.costPerKg, subtotalNet: net, tax: Math.round((gross - net) * 100) / 100,
+        total: gross, paymentMethod: methodLabel,
+      });
+      const [bs] = await tx
+        .insert(bulkSales)
+        .values({ occurredOn: today, familyId: b.item.familyId, kg: b.kg, totalGross: gross, suggestedGross: b.suggested, customer: payload.customer || null, createdBy: session.userId, posSaleId: sale.id })
+        .returning({ id: bulkSales.id });
+      for (const sh of b.item.shares) {
+        await applyMovement(tx, {
+          rawMaterialId: sh.rawMaterialId, occurredOn: today, kind: "venta", grams: -(b.kg * 1000 * sh.share),
+          note: `Venta a granel #${bs.id}: ${b.kg} kg de ${b.item.name} (recibo V-${sale.id})`, userId: session.userId,
+        });
+      }
+    }
     await tx.insert(saleLines).values(rowsToInsert);
     return sale.id;
   });
@@ -88,7 +133,8 @@ export async function createSale(_prev: SaleState, formData: FormData): Promise<
     change: paid.change,
     receipt: receiptTicket({
       id: saleId, soldAt: now, seller, customer: payload.customer || null, gross: totals.gross, discount: totals.discount, total: totals.total,
-      lines: cartLines.map((l) => ({ name: l.p.name, qty: l.quantity, unit: l.unitGross, total: Math.round(lineGross({ unitGross: l.unitGross, quantity: l.quantity, ivaRate: l.ivaRate }) * factor), byWeight: soldByWeight(l.p.name) })),
+      lines: [...cartLines.map((l) => ({ name: l.p.name, qty: l.quantity, unit: l.unitGross, total: Math.round(lineGross({ unitGross: l.unitGross, quantity: l.quantity, ivaRate: l.ivaRate }) * factor), byWeight: soldByWeight(l.p.name), kg: false })),
+      ...bulkCart.map((b) => ({ name: `${b.item.name} (granel)`, qty: b.kg, unit: Math.round(b.total / b.kg), total: Math.round(b.total * factor), byWeight: false, kg: true }))],
       payments: paid.paid, cashReceived: paid.cashReceived, change: paid.change,
     }),
   };
@@ -102,6 +148,18 @@ export async function voidSale(formData: FormData) {
   await db.transaction(async (tx) => {
     await tx.update(posSales).set({ status: "anulada", voidReason: reason }).where(eq(posSales.id, id));
     await tx.update(saleLines).set({ excluded: true, excludedReason: `Venta anulada V-${id}: ${reason}` }).where(eq(saleLines.invoice, `V-${id}`));
+    // Granel dentro de la venta: devuelve los kilos al inventario.
+    const bulks = await tx.select().from(bulkSales).where(eq(bulkSales.posSaleId, id));
+    for (const b of bulks) {
+      const moves = await tx
+        .select({ rawMaterialId: stockMovements.rawMaterialId, grams: stockMovements.grams })
+        .from(stockMovements)
+        .where(and(eq(stockMovements.kind, "venta"), like(stockMovements.note, `Venta a granel #${b.id}:%`)));
+      for (const m of moves) {
+        await applyMovement(tx, { rawMaterialId: m.rawMaterialId, occurredOn: todayISO(), kind: "ajuste", grams: -m.grams, note: `Anulación recibo V-${id}`, userId: null });
+      }
+      await tx.delete(bulkSales).where(eq(bulkSales.id, b.id));
+    }
   });
   revalidatePath("/vender");
   revalidatePath("/caja");

@@ -2,20 +2,31 @@
 
 import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import { PrintTicket, type TicketData } from "@/components/ticket";
+import { quoteFromTiers, type PublicQuoteItem } from "@/lib/bulk";
 import { fmtCOP } from "@/lib/format";
 import { POS_METHODS, cartTotals, lineGross, quickCash, settle, type PosMethod } from "@/lib/pos";
+import type { Settings } from "@/lib/settings-defaults";
 import { createSale, type SaleState } from "./actions";
 import type { PosProduct } from "./data";
 
 type CartLine = { product: PosProduct; quantity: number };
 type PayRow = { key: number; method: PosMethod; amount: string };
+type BulkLine = { key: number; item: PublicQuoteItem; kg: number; total: number };
+type Held = { at: number; cart: { id: number; q: number }[]; bulk: { familyId: number; kg: number; total: number }[]; customer: string };
+const HOLD_KEY = "vitalic-espera";
+const KG_BUTTONS = [0.5, 1, 2, 3, 5, 10, 25];
+const kgText = (kg: number) => `${kg.toLocaleString("es-CO", { maximumFractionDigits: 3 })} kg`;
 
 const strip = (t: string) => t.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 const num = (v: string) => Number(v.replace(/\./g, "").replace(",", ".")) || 0;
 const METHOD_ORDER: PosMethod[] = ["efectivo", "tarjeta", "nequi", "daviplata", "breb", "transferencia"];
 
-export function PosTerminal({ products, quick, isAdmin }: { products: PosProduct[]; quick: number[]; isAdmin: boolean }) {
+export function PosTerminal({ products, quick, isAdmin, bulkItems, settings }: { products: PosProduct[]; quick: number[]; isAdmin: boolean; bulkItems: PublicQuoteItem[]; settings: Settings }) {
   const [cart, setCart] = useState<CartLine[]>([]);
+  const [bulkCart, setBulkCart] = useState<BulkLine[]>([]);
+  const [draft, setDraft] = useState<{ item: PublicQuoteItem; kg: string; price: string } | null>(null);
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [held, setHeld] = useState<Held[]>([]);
   const [query, setQuery] = useState("");
   const [paying, setPaying] = useState(false);
   const [pay, setPay] = useState<PayRow[]>([{ key: 1, method: "efectivo", amount: "" }]);
@@ -35,16 +46,39 @@ export function PosTerminal({ products, quick, isAdmin }: { products: PosProduct
     return products.filter((p) => { const hay = strip(`${p.name} ${p.sku}`); return words.every((w) => hay.includes(w)); }).slice(0, 14);
   }, [query, products]);
 
-  const totals = cartTotals(cart.map((l) => ({ unitGross: l.product.priceGross, quantity: l.quantity, ivaRate: l.product.ivaRate })), isAdmin ? num(discount) : 0);
+  const bulkMatches = useMemo(() => {
+    const q = strip(query.trim());
+    if (!q) return [];
+    return bulkItems.filter((b) => q.split(/\s+/).every((w) => strip(b.name).includes(w))).slice(0, 6);
+  }, [query, bulkItems]);
+  const productGross = cart.reduce((t, l) => t + lineGross({ unitGross: l.product.priceGross, quantity: l.quantity, ivaRate: l.product.ivaRate }), 0);
+  const maxDiscount = isAdmin ? Infinity : Math.floor(productGross * settings.descuentoMaxCajera);
+  const totals = cartTotals(
+    [...cart.map((l) => ({ unitGross: l.product.priceGross, quantity: l.quantity, ivaRate: l.product.ivaRate })), ...bulkCart.map((b) => ({ unitGross: b.total, quantity: 1, ivaRate: b.item.ivaRate }))],
+    Math.min(num(discount), maxDiscount),
+  );
+  const empty = cart.length === 0 && bulkCart.length === 0;
   const payments = pay.map((p) => ({ method: p.method, amount: p.amount === "" && pay.length === 1 && p.method !== "efectivo" ? totals.total : num(p.amount) }));
   const result = settle(totals.total, payments);
 
   useEffect(() => { searchRef.current?.focus(); }, []);
+  useEffect(() => {
+    try { setHeld(JSON.parse(localStorage.getItem(HOLD_KEY) ?? "[]")); } catch { /* sin almacenamiento */ }
+  }, []);
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "F2") { e.preventDefault(); searchRef.current?.focus(); }
+      else if (e.key === "F4") { e.preventDefault(); setPaying(true); }
+      else if (e.key === "Escape") { setQuery(""); setDraft(null); }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
   // Al terminar la venta: imprime el recibo (abre el cajón si el controlador lo tiene activado) y deja la caja lista.
   useEffect(() => {
     if (state.saleId && state.saleId !== lastPrinted.current) {
       lastPrinted.current = state.saleId;
-      setCart([]); setPaying(false); setPay([{ key: 1, method: "efectivo", amount: "" }]); setDiscount(""); setCustomer("");
+      setCart([]); setBulkCart([]); setDraft(null); setPaying(false); setPay([{ key: 1, method: "efectivo", amount: "" }]); setDiscount(""); setCustomer("");
       if (autoPrint) setTimeout(() => document.getElementById("print-last-sale")?.click(), 150);
     }
   }, [state.saleId, autoPrint]);
@@ -65,10 +99,42 @@ export function PosTerminal({ products, quick, isAdmin }: { products: PosProduct
     const pick = exact ?? matches[0];
     if (pick) add(pick);
   }
+  function saveHeld(list: Held[]) {
+    setHeld(list);
+    try { localStorage.setItem(HOLD_KEY, JSON.stringify(list)); } catch { /* sin almacenamiento */ }
+  }
+  function putOnHold() {
+    if (empty) return;
+    saveHeld([...held, { at: Date.now(), cart: cart.map((l) => ({ id: l.product.id, q: l.quantity })), bulk: bulkCart.map((b) => ({ familyId: b.item.familyId, kg: b.kg, total: b.total })), customer }]);
+    setCart([]); setBulkCart([]); setPaying(false); setDiscount(""); setCustomer("");
+    searchRef.current?.focus();
+  }
+  function resume(h: Held) {
+    if (!empty) putOnHold();
+    setCart(h.cart.flatMap((l) => { const p = byId.get(l.id); return p ? [{ product: p, quantity: l.q }] : []; }));
+    setBulkCart(h.bulk.flatMap((b) => { const item = bulkItems.find((i) => i.familyId === b.familyId); return item ? [{ key: ++keySeq.current, item, kg: b.kg, total: b.total }] : []; }));
+    setCustomer(h.customer);
+    setHeld((cur) => { const next = cur.filter((x) => x.at !== h.at); try { localStorage.setItem(HOLD_KEY, JSON.stringify(next)); } catch { /* sin almacenamiento */ } return next; });
+  }
+  function openDraft(item: PublicQuoteItem, kg = 25) {
+    const quote = quoteFromTiers(item, kg, settings);
+    setDraft({ item, kg: String(kg), price: String(quote.total) });
+    setQuery(""); setBulkOpen(false);
+  }
+  function addDraft() {
+    if (!draft) return;
+    const kg = num(draft.kg);
+    const total = Math.round(num(draft.price));
+    if (!(kg > 0) || !(total > 0)) return;
+    setBulkCart((c) => [...c, { key: ++keySeq.current, item: draft.item, kg, total }]);
+    setDraft(null);
+    searchRef.current?.focus();
+  }
   const setQty = (id: number, q: number) => setCart((c) => (q <= 0 ? c.filter((l) => l.product.id !== id) : c.map((l) => (l.product.id === id ? { ...l, quantity: q } : l))));
   const payload = JSON.stringify({
     lines: cart.map((l) => ({ productId: l.product.id, quantity: l.quantity })),
-    discount: isAdmin ? num(discount) : 0, customer: customer.trim() || null,
+    bulkLines: bulkCart.map((b) => ({ familyId: b.item.familyId, kg: b.kg, total: b.total })),
+    discount: Math.min(num(discount), maxDiscount), customer: customer.trim() || null,
     payments: payments.map((p) => ({ method: p.method, amount: p.amount })),
   });
   const ticket: TicketData | undefined = state.receipt;
@@ -82,6 +148,18 @@ export function PosTerminal({ products, quick, isAdmin }: { products: PosProduct
             onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); onEnter(); } }}
             placeholder="Buscar producto o escanear código…" className="input text-lg" autoComplete="off" aria-label="Buscar producto"
           />
+          {bulkMatches.length > 0 && (
+            <ul className="divide-y divide-[var(--border)] rounded-xl border border-[var(--border)]">
+              {bulkMatches.map((b) => (
+                <li key={b.familyId}>
+                  <button type="button" onClick={() => openDraft(b)} className="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left hover:bg-[var(--surface-2)]">
+                    <span className="min-w-0"><span className="block truncate font-medium">{b.name} · por kilo / bulto</span><span className="block truncate text-xs text-muted">Granel: elige 1, 5, 25 kg…</span></span>
+                    <span className="shrink-0 rounded-lg px-2 py-0.5 text-xs font-semibold" style={{ background: "var(--surface-2)" }}>GRANEL</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
           {matches.length > 0 && (
             <ul className="max-h-80 divide-y divide-[var(--border)] overflow-y-auto rounded-xl border border-[var(--border)]">
               {matches.map((p) => (
@@ -94,6 +172,23 @@ export function PosTerminal({ products, quick, isAdmin }: { products: PosProduct
               ))}
             </ul>
           )}
+        </div>
+        <div className="card space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <p className="label !mb-0">Granel y bultos (por kilo)</p>
+            <button type="button" onClick={() => setBulkOpen((o) => !o)} className="btn-secondary px-3 py-1.5 text-sm">{bulkOpen ? "Cerrar" : "Vender a granel / bulto 25 kg"}</button>
+          </div>
+          {bulkOpen && (
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {bulkItems.map((b) => (
+                <button key={b.familyId} type="button" onClick={() => openDraft(b)} className="rounded-xl border border-[var(--border)] p-2 text-left hover:border-brand-500 hover:bg-[var(--surface-2)]">
+                  <span className="line-clamp-2 block text-sm font-medium leading-tight">{b.name}</span>
+                  <span className="mt-1 block text-xs text-muted">{b.stockKg !== null ? `${Math.floor(b.stockKg)} kg disponibles` : ""}</span>
+                </button>
+              ))}
+            </div>
+          )}
+          {draft && <DraftPanel draft={draft} setDraft={setDraft} settings={settings} isAdmin={isAdmin} onAdd={addDraft} />}
         </div>
         <div className="card">
           <p className="label">Los más vendidos</p>
@@ -110,8 +205,20 @@ export function PosTerminal({ products, quick, isAdmin }: { products: PosProduct
 
       <section className="space-y-3 lg:sticky lg:top-4 lg:self-start">
         <div className="card space-y-3">
-          <div className="flex items-center justify-between"><h2 className="font-semibold">Venta actual</h2>{cart.length > 0 && <button type="button" onClick={() => { setCart([]); setPaying(false); }} className="text-sm text-muted underline">Vaciar</button>}</div>
-          {cart.length === 0 && <p className="py-6 text-center text-sm text-muted">Busca o toca un producto para empezar.</p>}
+          <div className="flex items-center justify-between"><h2 className="font-semibold">Venta actual</h2><div className="flex items-center gap-3 text-sm">
+            {!empty && <button type="button" onClick={putOnHold} className="underline">Poner en espera</button>}
+            {!empty && <button type="button" onClick={() => { setCart([]); setBulkCart([]); setPaying(false); }} className="text-muted underline">Vaciar</button>}
+          </div></div>
+          {held.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {held.map((h, i) => (
+                <button key={h.at} type="button" onClick={() => resume(h)} className="btn-secondary px-3 py-1 text-sm">
+                  Espera {i + 1}{h.customer ? ` · ${h.customer}` : ""} ({h.cart.length + h.bulk.length})
+                </button>
+              ))}
+            </div>
+          )}
+          {empty && <p className="py-6 text-center text-sm text-muted">Busca o toca un producto para empezar. <span className="block text-xs">F2 buscar · F4 cobrar · Esc limpiar</span></p>}
           <ul className="divide-y divide-[var(--border)]">
             {cart.map((l) => (
               <li key={l.product.id} className="space-y-1 py-2">
@@ -128,14 +235,32 @@ export function PosTerminal({ products, quick, isAdmin }: { products: PosProduct
                 </div>
               </li>
             ))}
+            {bulkCart.map((b) => (
+              <li key={`b${b.key}`} className="flex items-start justify-between gap-2 py-2">
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium leading-tight">{b.item.name} <span className="rounded px-1.5 py-0.5 text-xs" style={{ background: "var(--surface-2)" }}>granel</span></p>
+                  <p className="text-xs text-muted">{kgText(b.kg)} × {fmtCOP(Math.round(b.total / b.kg))}/kg</p>
+                </div>
+                <div className="text-right"><p className="font-semibold tabular-nums">{fmtCOP(b.total)}</p><button type="button" onClick={() => setBulkCart((c) => c.filter((x) => x.key !== b.key))} className="text-sm text-muted underline">Quitar</button></div>
+              </li>
+            ))}
           </ul>
-          {cart.length > 0 && (
+          {!empty && (
             <>
-              {isAdmin && (
-                <label className="flex items-center justify-between gap-2 text-sm">
-                  <span className="text-muted">Descuento (solo administradores)</span>
-                  <input value={discount} onChange={(e) => setDiscount(e.target.value)} inputMode="numeric" placeholder="0" className="input w-28 py-1 text-right" />
-                </label>
+              {productGross > 0 && maxDiscount > 0 && (
+                <div className="space-y-1.5 text-sm">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-muted">Descuento{isAdmin ? "" : ` (máx. ${Math.round(settings.descuentoMaxCajera * 100)} %)`}</span>
+                    <input value={discount} onChange={(e) => setDiscount(e.target.value)} inputMode="numeric" placeholder="0" className="input w-28 py-1 text-right" />
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {[0.05, 0.1].filter((pct) => isAdmin || pct <= settings.descuentoMaxCajera).map((pct) => (
+                      <button key={pct} type="button" onClick={() => setDiscount(String(Math.round(productGross * pct)))} className="btn-secondary px-2.5 py-1 text-xs">{pct * 100} %</button>
+                    ))}
+                    {num(discount) > 0 && <button type="button" onClick={() => setDiscount("")} className="px-2 py-1 text-xs text-muted underline">Quitar</button>}
+                  </div>
+                  {num(discount) > maxDiscount && <p className="text-xs" style={{ color: "var(--warn)" }}>Se aplicará el máximo permitido: {fmtCOP(maxDiscount)}.</p>}
+                </div>
               )}
               <div className="flex items-end justify-between border-t border-[var(--border)] pt-3">
                 <span className="text-muted">Total</span>
@@ -146,7 +271,7 @@ export function PosTerminal({ products, quick, isAdmin }: { products: PosProduct
           )}
         </div>
 
-        {paying && cart.length > 0 && (
+        {paying && !empty && (
           <form action={action} className="card space-y-3">
             <input type="hidden" name="payload" value={payload} />
             <h2 className="font-semibold">Cobro</h2>
@@ -185,7 +310,7 @@ export function PosTerminal({ products, quick, isAdmin }: { products: PosProduct
           </form>
         )}
 
-        {ticket && state.saleId && !paying && cart.length === 0 && (
+        {ticket && state.saleId && !paying && empty && (
           <div className="card space-y-2">
             <p className="rounded-lg px-3 py-2 text-sm font-medium" style={{ background: "var(--good-bg)", color: "var(--good)" }}>
               Venta V-{state.saleId} registrada{state.change ? ` · devuelve ${fmtCOP(state.change)}` : ""}.
@@ -197,6 +322,46 @@ export function PosTerminal({ products, quick, isAdmin }: { products: PosProduct
           </div>
         )}
       </section>
+    </div>
+  );
+}
+
+function DraftPanel({ draft, setDraft, settings, isAdmin, onAdd }: {
+  draft: { item: PublicQuoteItem; kg: string; price: string };
+  setDraft: (d: { item: PublicQuoteItem; kg: string; price: string } | null) => void;
+  settings: Settings; isAdmin: boolean; onAdd: () => void;
+}) {
+  const kg = num(draft.kg);
+  const quote = kg > 0 ? quoteFromTiers(draft.item, kg, settings) : null;
+  const price = Math.round(num(draft.price));
+  const belowFloor = !!quote && price < quote.floorTotal;
+  const blocked = belowFloor && !isAdmin;
+  const stock = draft.item.stockKg;
+  const set = (nextKg: number) => {
+    const q = quoteFromTiers(draft.item, nextKg, settings);
+    setDraft({ ...draft, kg: String(nextKg), price: String(q.total) });
+  };
+  return (
+    <div className="space-y-3 rounded-xl border border-brand-500 p-3">
+      <div className="flex items-center justify-between"><p className="font-semibold">{draft.item.name} · granel</p><button type="button" onClick={() => setDraft(null)} className="text-sm text-muted underline">Cancelar</button></div>
+      <div className="flex flex-wrap gap-1.5">
+        {KG_BUTTONS.map((k) => (
+          <button key={k} type="button" onClick={() => set(k)} className={kg === k ? "btn-primary px-3 py-1.5 text-sm" : "btn-secondary px-3 py-1.5 text-sm"}>{k === 25 ? "Bulto 25 kg" : kgText(k)}</button>
+        ))}
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <label className="text-sm"><span className="label">Kilos</span><input value={draft.kg} onChange={(e) => { const v = num(e.target.value); setDraft({ ...draft, kg: e.target.value, price: v > 0 ? String(quoteFromTiers(draft.item, v, settings).total) : draft.price }); }} inputMode="decimal" className="input" /></label>
+        <label className="text-sm"><span className="label">Precio total (con IVA)</span><input value={draft.price} onChange={(e) => setDraft({ ...draft, price: e.target.value })} inputMode="numeric" className="input font-semibold" /></label>
+      </div>
+      {quote && (
+        <div className="space-y-0.5 text-sm">
+          <p className="text-muted">{quote.tierLabel} · {fmtCOP(Math.round(price / kg))}/kg</p>
+          {quote.retailTotal && quote.savings !== null && quote.savings > 0 && <p className="text-muted">En bolsas pagaría {fmtCOP(quote.retailTotal)} · ahorra {Math.round(quote.savings * 100)} %</p>}
+          {stock !== null && kg > stock && <p style={{ color: "var(--warn)" }}>Ojo: según el inventario solo hay {Math.floor(stock)} kg.</p>}
+          {belowFloor && <p style={{ color: "var(--bad)" }}>{isAdmin ? "Por debajo del precio mínimo" : `El mínimo es ${fmtCOP(quote.floorTotal)}; pide autorización a Luis o Paula.`}</p>}
+        </div>
+      )}
+      <button type="button" onClick={onAdd} disabled={!quote || !(price > 0) || blocked} className="btn-primary w-full py-2.5">Agregar a la venta · {fmtCOP(price)}</button>
     </div>
   );
 }

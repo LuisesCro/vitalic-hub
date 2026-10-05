@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useMemo, useState } from "react";
-import { profitOf, tierFor } from "@/lib/bulk";
+import { profitOf, quoteFromTiers } from "@/lib/bulk";
 import { fmtCOP, fmtPct } from "@/lib/format";
 import type { Settings } from "@/lib/settings-defaults";
 import { PrintTicket } from "@/components/ticket";
@@ -11,21 +11,6 @@ import type { PublicQuoteItem as QuoteItem } from "./data";
 const strip = (t: string) => t.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 const num = (v: string) => Number(v.replace(",", ".")) || 0;
 const QUICK = [1, 2, 3, 5, 10];
-
-const ceilTo = (v: number, step: number) => Math.ceil(v / step) * step;
-
-/** Misma cuenta que el servidor, con los precios por nivel que ya vienen calculados. */
-function quoteFor(item: QuoteItem, kg: number, s: Settings) {
-  const { tier, margin, label } = tierFor(kg, s);
-  const level = item.tiers[tier - 1];
-  const total = ceilTo(level.pricePerKg * kg, 500);
-  const retailTotal = item.retailPerKg ? Math.round(item.retailPerKg * kg) : null;
-  return {
-    tierLabel: label, margin, pricePerKg: level.pricePerKg, total, cappedByRetail: level.capped,
-    floorPerKg: Math.min(item.floorPerKg, level.pricePerKg), floorTotal: ceilTo(Math.min(item.floorPerKg, level.pricePerKg) * kg, 500),
-    retailTotal, savings: retailTotal ? 1 - total / retailTotal : null,
-  };
-}
 
 export function QuoteTool({ items, settings, isAdmin }: { items: QuoteItem[]; settings: Settings; isAdmin: boolean }) {
   const [query, setQuery] = useState("");
@@ -41,7 +26,7 @@ export function QuoteTool({ items, settings, isAdmin }: { items: QuoteItem[]; se
   }, [query, items, picked]);
 
   const kg = num(kgText);
-  const quote = picked && kg > 0 ? quoteFor(picked, kg, settings) : null;
+  const quote = picked && kg > 0 ? quoteFromTiers(picked, kg, settings) : null;
   const finalTotal = num(total.replace(/\./g, "")) || quote?.total || 0;
   const belowFloor = quote ? finalTotal < quote.floorTotal : false;
   const shortStock = picked?.stockKg !== null && picked?.stockKg !== undefined && kg > picked.stockKg;

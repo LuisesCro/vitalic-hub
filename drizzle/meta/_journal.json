@@ -57,6 +57,13 @@
       "when": 1791216852072,
       "tag": "0007_pos",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1791218388621,
+      "tag": "0008_granel_en_caja",
+      "breakpoints": true
     }
   ]
 }
