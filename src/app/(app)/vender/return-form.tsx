@@ -18,9 +18,12 @@ export function ReturnForm({ saleId, number, lines, defaultMethod, maxRefund }: 
   const [reason, setReason] = useState("");
   const printed = useRef<number | null>(null);
 
+  // Bolsas y unidades se devuelven enteras; solo el granel (kg) y lo vendido por gramos admiten decimales.
+  const whole = (l: SaleLineInfo) => !l.kg && !l.byWeight;
+  const parse = (l: SaleLineInfo, raw: string) => (whole(l) ? Math.floor(Number(raw.replace(/\D/g, "")) || 0) : Number(raw.replace(",", ".")) || 0);
   const remaining = (l: SaleLineInfo) => Math.max(0, Math.round((l.quantity - l.returned) * 1000) / 1000);
   const items = lines.flatMap((l) => {
-    const q = Number((qty[l.id] ?? "").replace(",", ".")) || 0;
+    const q = parse(l, qty[l.id] ?? "");
     return q > 0 ? [{ lineId: l.id, qty: Math.min(q, remaining(l)) }] : [];
   });
   const refund = items.reduce((t, it) => {
@@ -54,8 +57,8 @@ export function ReturnForm({ saleId, number, lines, defaultMethod, maxRefund }: 
               {remaining(l) > 0 ? (
                 <span className="flex shrink-0 items-center gap-1">
                   <input
-                    value={qty[l.id] ?? ""} onChange={(e) => setQty({ ...qty, [l.id]: e.target.value })}
-                    inputMode="decimal" placeholder="0" className="input w-16 py-1 text-center" aria-label={`Cantidad a devolver de ${l.name}`}
+                    value={qty[l.id] ?? ""} onChange={(e) => setQty({ ...qty, [l.id]: whole(l) ? e.target.value.replace(/\D/g, "") : e.target.value })}
+                    inputMode={whole(l) ? "numeric" : "decimal"} placeholder="0" className="input w-16 py-1 text-center" aria-label={`Cantidad a devolver de ${l.name}`}
                   />
                   <button type="button" className="text-xs underline" onClick={() => setQty({ ...qty, [l.id]: String(remaining(l)) })}>todo</button>
                 </span>

@@ -213,6 +213,8 @@ export async function returnSale(_prev: ReturnState, formData: FormData): Promis
   for (const it of payload.items) {
     const line = lines.find((l) => l.id === it.lineId);
     if (!line) return { error: "Una línea de la devolución no es de esta venta" };
+    const isWhole = !line.sku.startsWith("GRANEL-") && !soldByWeight(line.productName);
+    if (isWhole && !Number.isInteger(it.qty)) return { error: `«${line.productName}» se devuelve en unidades enteras` };
     const remaining = Math.round((line.quantity - (returned.get(line.externalKey) ?? 0)) * 1000) / 1000;
     if (it.qty > remaining + 1e-9) return { error: `De «${line.productName}» solo quedan ${remaining.toLocaleString("es-CO")} por devolver` };
     picked.push({ line, qty: it.qty, refund: Math.round((line.total * it.qty) / line.quantity) });
