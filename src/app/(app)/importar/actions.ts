@@ -3,13 +3,14 @@
 import { eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
-import { products, rawMaterials, saleLines } from "@/db/schema";
+import { cashSessions, products, rawMaterials, saleLines } from "@/db/schema";
 import { matchRawMaterial } from "@/lib/matching";
 import { requireAdmin } from "@/lib/session";
 import { gramsFromName } from "@/lib/units";
 import { parseInventoryCount, parseVendtyProducts, parseVendtyTransactions } from "@/lib/vendty";
 import { parseBagStock } from "@/lib/bag-stock";
 import { parseVendtyClose } from "@/lib/vendty-close";
+import { isPosClose, parsePosClose, type PdfText } from "@/lib/vendty-pos-close";
 import { loadComponents, loadRawCosts } from "@/lib/components";
 import { unitCostFromComponents } from "@/lib/costing";
 import { getSettings } from "@/lib/settings";
@@ -202,7 +203,7 @@ const bogotaDay = (d: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: "Ame
  * exportación de Transacciones. Los días que ya tienen ventas de Transacciones o de Vitalic Hub no se tocan.
  */
 export async function importCloses(_prev: ImportState, formData: FormData): Promise<ImportState> {
-  await requireAdmin();
+  const session = await requireAdmin();
   const files = formData.getAll("file").filter((f): f is File => f instanceof File && f.size > 0);
   if (files.length === 0) return { error: "Elige los PDF de cierre de caja de Vendty" };
   const { extractText, getDocumentProxy } = await import("unpdf");
@@ -218,11 +219,71 @@ export async function importCloses(_prev: ImportState, formData: FormData): Prom
 
   for (const file of files) {
     let close;
+    let pos = null as ReturnType<typeof parsePosClose>;
     try {
       const pdf = await getDocumentProxy(new Uint8Array(await file.arrayBuffer()));
-      close = parseVendtyClose((await extractText(pdf, { mergePages: true })).text);
+      // Cierre numerado de Vendty POS (con códigos de producto y arqueo): se lee por posición del texto.
+      const pages: PdfText[][] = [];
+      for (let n = 1; n <= pdf.numPages; n++) {
+        const tc = await (await pdf.getPage(n)).getTextContent();
+        pages.push((tc.items as { str?: string; transform: number[] }[]).filter((i) => i.str && i.str.trim()).map((i) => ({ s: i.str!, x: i.transform[4], y: i.transform[5] })));
+      }
+      if (isPosClose(pages)) pos = parsePosClose(pages);
+      else close = parseVendtyClose((await extractText(pdf, { mergePages: true })).text);
     } catch {
       messages.push(`${file.name}: no pude leerlo como PDF.`);
+      continue;
+    }
+    if (pos) {
+      const posSum = pos.items.reduce((t, i) => t + i.value, 0);
+      if (pos.items.length === 0 || Math.abs(posSum - pos.total) > 5) { messages.push(`${pos.date}: los productos suman ${posSum} y el total dice ${pos.total}; no lo cargué.`); continue; }
+      const bySkuCode = new Map(prods.map((p) => [p.sku.toLowerCase(), p]));
+      const [exists] = await db.execute<{ n: string; total: string }>(dsql`
+        select count(*) as n, coalesce(sum(total), 0) as total from sale_lines
+        where (sold_at at time zone 'America/Bogota')::date = ${pos.date} and invoice not like 'CIERRE-%' and not excluded`);
+      const [hasCierre] = await db.execute<{ n: string }>(dsql`select count(*) as n from sale_lines where invoice = ${`CIERRE-${pos.date}`}`);
+      if (Number(exists.n) > 0) {
+        messages.push(`${pos.date}: ya tiene ventas de la caja o de Transacciones; no las toqué.`);
+      } else if (Number(hasCierre.n) > 0) {
+        messages.push(`${pos.date}: ya tenía las ventas de un cierre cargado; no las dupliqué.`);
+      } else {
+        const soldAtPos = new Date(`${pos.date}T12:00:00-05:00`);
+        const posRows = pos.items.map((it, i) => {
+          const prod = bySkuCode.get(it.code.toLowerCase()) ?? byName.get(normalize(it.name)) ?? matchProduct(it.name, gramsFromName(it.name), prods) ?? null;
+          if (!prod) unmatched++;
+          const iva = prod?.ivaRate ?? 0;
+          const comps = prod ? (recipes.get(prod.id) ?? []).map((c) => ({ grams: c.grams, costPerKg: rawCosts.get(c.rawMaterialId) ?? null })) : [];
+          const cost = prod ? unitCostFromComponents(prod, comps, settings) ?? 0 : 0;
+          const net = Math.round((it.value / (1 + iva)) * 100) / 100;
+          return {
+            externalKey: `CIERRE-${pos.date}|${i + 1}|${it.code}`, invoice: `CIERRE-${pos.date}`, soldAt: soldAtPos,
+            sku: prod?.sku ?? "SIN-CODIGO", productName: prod?.name ?? it.name, category: prod?.category ?? null,
+            quantity: it.quantity, unitPriceNet: Math.round((it.value / it.quantity / (1 + iva)) * 100) / 100, unitCostNet: cost,
+            subtotalNet: net, tax: Math.round((it.value - net) * 100) / 100, total: it.value, paymentMethod: null,
+          };
+        });
+        await db.transaction(async (tx) => {
+          await tx.delete(saleLines).where(eq(saleLines.invoice, `CIERRE-${pos.date}`));
+          for (let k = 0; k < posRows.length; k += 200) await tx.insert(saleLines).values(posRows.slice(k, k + 200));
+        });
+        loaded++;
+        messages.push(`${pos.date}: ${posRows.length} líneas por ${pos.total.toLocaleString("es-CO")} (${pos.salesCount} ventas, cierre No. ${pos.number ?? "—"}).`);
+      }
+      // Cuadre de caja del día, si todavía no existe: medios de pago, base y efectivo contado del arqueo.
+      const [hasCash] = await db.select({ id: cashSessions.id }).from(cashSessions).where(eq(cashSessions.businessDate, pos.date));
+      if (!hasCash) {
+        const by = { salesCash: 0, salesCard: 0, salesNequi: 0, salesDaviplata: 0, salesBreb: 0, salesTransfer: 0, salesOther: 0 };
+        for (const [method, amount] of Object.entries(pos.payments)) {
+          const key = /efectivo/.test(method) ? "salesCash" : /tarjeta/.test(method) ? "salesCard" : /nequi/.test(method) ? "salesNequi" : /daviplata/.test(method) ? "salesDaviplata"
+            : /bre|llave/.test(method) ? "salesBreb" : /transfer/.test(method) ? "salesTransfer" : "salesOther";
+          by[key] += amount;
+        }
+        await db.insert(cashSessions).values({
+          businessDate: pos.date, status: "cerrada", openingCash: pos.opening, openedBy: session.userId, ...by, countedCash: pos.countedCash,
+          closingNote: `Cierre No. ${pos.number ?? "—"} de Vendty (PDF)`, closedBy: session.userId, closedAt: new Date(),
+        }).onConflictDoNothing();
+        messages.push(`${pos.date}: cuadre de caja cargado (efectivo contado ${(pos.countedCash ?? 0).toLocaleString("es-CO")}).`);
+      }
       continue;
     }
     if (!close || close.items.length === 0) { messages.push(`${file.name}: no parece un cierre de caja de Vendty.`); continue; }
