@@ -2,6 +2,7 @@ import Link from "next/link";
 import { asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { cashMovements, cashSessions, posSales, saleLines, users } from "@/db/schema";
+import { excludeSaleLine } from "../importar/actions";
 import { CASH_COLUMN, isPosMethod } from "@/lib/pos";
 import {
   MOVEMENT_KINDS, PAYMENT_METHODS, differenceStatus, expectedCash, totalSales, vendtyMethodKey,
@@ -72,6 +73,16 @@ export default async function CajaPage({ searchParams }: { searchParams: Promise
   const movementsBySession = new Map<number, typeof allMovements>();
   for (const m of allMovements) movementsBySession.set(m.sessionId, [...(movementsBySession.get(m.sessionId) ?? []), m]);
   const lastClosed = history.find((h) => h.status === "cerrada" && h.businessDate < date);
+
+  // Ventas importadas (no de la caja de Hub) de ese día, para que el administrador las revise o excluya.
+  const imported = session.role === "admin"
+    ? await db
+        .select({ id: saleLines.id, invoice: saleLines.invoice, name: saleLines.productName, qty: saleLines.quantity, total: saleLines.total })
+        .from(saleLines)
+        .where(sql`(${saleLines.soldAt} at time zone 'America/Bogota')::date = ${date} and not ${saleLines.excluded} and ${saleLines.invoice} not like 'V-%'`)
+        .orderBy(asc(saleLines.invoice), asc(saleLines.id))
+        .limit(200)
+    : [];
 
   const month = today.slice(0, 7);
   const monthClosed = history.filter((h) => h.status === "cerrada" && h.businessDate.startsWith(month));
@@ -186,6 +197,27 @@ export default async function CajaPage({ searchParams }: { searchParams: Promise
             <ClosedSummary canReopen={session.role === "admin"} s={current} movements={movements} closedBy={names.get(current.closedBy ?? 0)} vendty={vendty} />
           )}
         </>
+      )}
+
+      {imported.length > 0 && (
+        <details className="card">
+          <summary className="cursor-pointer font-semibold">Ventas importadas de este día ({imported.length} líneas · {fmtCOP(imported.reduce((t, l) => t + l.total, 0))})</summary>
+          <div className="mt-2 overflow-x-auto">
+            <table className="table-base">
+              <thead><tr><th>Factura / cierre</th><th>Producto</th><th className="text-right">Cant.</th><th className="text-right">Total</th><th /></tr></thead>
+              <tbody>
+                {imported.map((l) => (
+                  <tr key={l.id}>
+                    <td>{l.invoice}</td><td>{l.name}</td><td className="text-right">{l.qty.toLocaleString("es-CO")}</td><td className="text-right">{fmtCOP(l.total)}</td>
+                    <td>
+                      <form action={excludeSaleLine}><input type="hidden" name="id" value={l.id} /><button className="text-xs text-muted underline">Excluir</button></form>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </details>
       )}
 
       <section className="card overflow-x-auto">
