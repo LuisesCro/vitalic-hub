@@ -121,3 +121,18 @@ export async function deleteCash(formData: FormData) {
   refresh();
   redirect("/caja");
 }
+
+/** Corrige las ventas por medio de pago de un cuadre ya cerrado (sin tocar el conteo del efectivo). Solo administradores. */
+export async function correctCashSales(formData: FormData) {
+  await requireAdmin();
+  const id = Number(formData.get("id"));
+  const sales = Object.fromEntries(PAYMENT_METHODS.map((m) => [m.key, parsePesos(formData.get(m.key))]));
+  const note = String(formData.get("note") ?? "").trim();
+  const [current] = await db.select({ note: cashSessions.closingNote }).from(cashSessions).where(eq(cashSessions.id, id));
+  if (!current) return;
+  await db
+    .update(cashSessions)
+    .set({ ...sales, closingNote: [current.note, note ? `Corrección: ${note}` : null].filter(Boolean).join(" · ") || null })
+    .where(eq(cashSessions.id, id));
+  refresh();
+}

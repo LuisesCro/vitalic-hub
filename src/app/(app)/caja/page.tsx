@@ -12,7 +12,7 @@ import { fmtCOP, todayISO } from "@/lib/format";
 import { requireSession } from "@/lib/session";
 import { PrintTicket } from "@/components/ticket";
 import { CloseForm } from "./close-form";
-import { addCashMovement, deleteCash, deleteCashMovement, openCash, reopenCash } from "./actions";
+import { addCashMovement, deleteCash, deleteCashMovement, correctCashSales, openCash, reopenCash } from "./actions";
 
 export const metadata = { title: "Caja · Vitalic Hub" };
 
@@ -343,6 +343,21 @@ function ClosedSummary({
           footer: "Firma: ____________________",
         }}
       />
+      {canReopen && (
+        <details className="rounded-lg border border-[var(--border)] p-3">
+          <summary className="cursor-pointer text-sm font-medium">Corregir ventas por medio de pago</summary>
+          <form action={correctCashSales} className="mt-3 space-y-3">
+            <input type="hidden" name="id" value={s.id} />
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {PAYMENT_METHODS.map((m) => (
+                <label key={m.key}><span className="label">{m.label}</span><input name={m.key} inputMode="numeric" defaultValue={s[m.key] || ""} className="input" placeholder="0" /></label>
+              ))}
+            </div>
+            <input name="note" className="input" placeholder="Motivo (opcional)" />
+            <button className="btn-secondary">Guardar corrección</button>
+          </form>
+        </details>
+      )}
       {canReopen ? (
         <form action={reopenCash}>
           <input type="hidden" name="id" value={s.id} />
