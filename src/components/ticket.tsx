@@ -14,18 +14,55 @@ export type TicketData = {
   footer?: string;
 };
 
+const TICKET_CSS = `
+  html, body { margin: 0; padding: 0; background: #fff; }
+  .ticket { width: 72mm; padding: 4mm; box-sizing: content-box; color: #000; font-family: "Courier New", ui-monospace, monospace; font-size: 11px; line-height: 1.35; }
+  .ticket img.t-logo { display: block; width: 46px; height: 46px; margin: 0 auto 3px; }
+  .ticket h1 { font-family: Arial, Helvetica, sans-serif; font-size: 16px; text-align: center; margin: 0; }
+  .ticket p { margin: 0; }
+  .ticket .t-center { text-align: center; }
+  .ticket .t-row { display: flex; justify-content: space-between; gap: 6px; }
+  .ticket .t-line { border-top: 1px dashed #000; margin: 5px 0; }
+  .ticket .t-big { font-size: 14px; font-weight: 700; }
+`;
+
 /**
  * Botón + tiquete de 80 mm. Al tocar imprime solo el tiquete por la impresora de recibos;
  * si en el controlador de la impresora está activado "abrir cajón", el cajón abre al imprimir.
  */
 export function PrintTicket({ data, label = "Imprimir tiquete", className = "btn-secondary", id }: { data: TicketData; label?: string; className?: string; id?: string }) {
   const ref = useRef<HTMLDivElement>(null);
-  // Solo sale el tiquete del botón que se tocó, aunque haya varios en la pantalla.
+  // El recibo se imprime en un documento aparte (iframe) con la altura exacta del recibo:
+  // así Chrome no manda a imprimir toda la pantalla del sistema ni deja papel en blanco.
   function print() {
     const el = ref.current;
-    el?.classList.add("ticket-active");
-    window.addEventListener("afterprint", () => el?.classList.remove("ticket-active"), { once: true });
-    window.print();
+    if (!el) return;
+    const frame = document.createElement("iframe");
+    frame.setAttribute("aria-hidden", "true");
+    frame.style.cssText = "position:fixed;left:-9999px;top:0;width:80mm;height:10px;border:0;";
+    document.body.appendChild(frame);
+    const doc = frame.contentDocument;
+    const win = frame.contentWindow;
+    if (!doc || !win) { frame.remove(); return; }
+    const logo = `${window.location.origin}/brand/vitalic-icono-negro.svg`;
+    doc.open();
+    doc.write(`<!doctype html><html><head><meta charset="utf-8"><title>Recibo</title><style>${TICKET_CSS}</style></head><body><div class="ticket">${el.innerHTML.replace(/src="[^"]*vitalic-icono-negro\.svg"/, `src="${logo}"`)}</div></body></html>`);
+    doc.close();
+    const clean = () => setTimeout(() => frame.remove(), 500);
+    const go = () => {
+      // Alto del recibo en mm (+ un poco de margen para que el cortador no se coma la última línea).
+      const heightMm = Math.ceil((doc.body.scrollHeight * 25.4) / 96) + 6;
+      const page = doc.createElement("style");
+      page.textContent = `@page { size: 80mm ${heightMm}mm; margin: 0; }`;
+      doc.head.appendChild(page);
+      win.addEventListener("afterprint", clean, { once: true });
+      win.focus();
+      win.print();
+      setTimeout(() => frame.remove(), 60000); // por si el navegador nunca avisa
+    };
+    const img = doc.querySelector("img");
+    if (img && !img.complete) { img.addEventListener("load", go, { once: true }); img.addEventListener("error", go, { once: true }); }
+    else go();
   }
   return (
     <>
