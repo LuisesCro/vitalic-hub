@@ -110,3 +110,23 @@ export async function createMissingSachets(_prev: SachetState): Promise<SachetSt
   if (skipped.length) parts.push(`No creé: ${skipped.join(", ")}.`);
   return { ok: parts.join(" ") };
 }
+
+/** Excepciones al mínimo de gramos: sachets que se dejan aunque pesen menos. */
+const MIN_GRAMS = 5;
+const MIN_EXCEPTIONS = /canela entera/i;
+
+/** Archiva los sachets que llevan menos de 5 g (no se pueden pesar bien), salvo las excepciones. El historial de ventas se conserva. */
+export async function archiveTinySachets(_prev: SachetState): Promise<SachetState> {
+  await requireAdmin();
+  const recipes = await loadComponents();
+  const sachets = await db.select().from(products).where(and(eq(products.format, "sachet"), eq(products.active, true)));
+  const tiny = sachets.filter((p) => {
+    const g = (recipes.get(p.id) ?? []).reduce((t, c) => t + c.grams, 0);
+    return g > 0 && g < MIN_GRAMS && !MIN_EXCEPTIONS.test(p.name);
+  });
+  if (tiny.length) await db.update(products).set({ active: false }).where(inArray(products.id, tiny.map((p) => p.id)));
+  revalidatePath("/catalogo", "layout");
+  revalidatePath("/vender");
+  revalidatePath("/sachets");
+  return { ok: tiny.length ? `Archivé ${tiny.length} sachets de menos de ${MIN_GRAMS} g: ${tiny.map((p) => p.name).join(", ")}.` : `No hay sachets de menos de ${MIN_GRAMS} g.` };
+}
