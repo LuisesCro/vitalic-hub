@@ -154,7 +154,7 @@ export async function saveFamily(_prev: CatalogState, formData: FormData): Promi
     return { error: issue ?? "Revisa los datos del producto" };
   }
   for (const pr of payload.presentations) {
-    if (pr.format !== "unidad" && !pr.grams) return { error: "Cada bolsa o papeleta necesita sus gramos" };
+    if (pr.format !== "unidad" && !pr.grams) return { error: "Cada bolsa o sachet necesita sus gramos" };
   }
 
   const existing = await db.select({ id: productFamilies.id }).from(productFamilies).where(eq(productFamilies.name, payload.name));
@@ -200,12 +200,12 @@ export async function saveFamily(_prev: CatalogState, formData: FormData): Promi
     // 3. Presentaciones con su receta en gramos.
     const keep: number[] = [];
     for (const pr of payload.presentations) {
-      const format = pr.format as "bolsa" | "papeleta" | "unidad";
+      const format = pr.format as "bolsa" | "sachet" | "unidad";
       const comps = pr.components?.length
         ? pr.components.map((c) => ({ rawMaterialId: resolve(c.ref), grams: c.grams })).filter((c): c is { rawMaterialId: number; grams: number } => c.rawMaterialId !== null)
         : pr.grams ? splitRecipe(recipe, pr.grams) : [];
       const grams = comps.length ? comps.reduce((t, c) => t + c.grams, 0) : pr.grams;
-      const name = format === "unidad" ? payload.name : `${payload.name} ${format === "papeleta" ? "papeleta " : ""}${fmtGrams(grams)}`;
+      const name = format === "unidad" ? payload.name : `${payload.name} ${format === "sachet" ? "sachet " : ""}${fmtGrams(grams)}`;
       const values = {
         name, category: payload.category, grams, ivaRate: payload.ivaRate, format, active: pr.active, familyId: familyId!,
         priceNet: Math.round((pr.priceGross / (1 + payload.ivaRate)) * 100) / 100,

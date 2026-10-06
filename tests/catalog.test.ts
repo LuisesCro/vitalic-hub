@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  detectFormat, familyKey, familyNameOf, marginOf, materialCost, papeletaMaxGrams, parseVendtyCompounds,
+  detectFormat, familyKey, familyNameOf, marginOf, materialCost, sachetMaxGrams, parseVendtyCompounds,
   priceForMargin, proportionsFrom, skuFor, splitRecipe,
 } from "@/lib/catalog";
 import fs from "node:fs";
@@ -15,8 +15,8 @@ describe("catálogo", () => {
     expect(familyKey("Anís estrellado 20g")).toBe(familyKey("Anis Estrellado 125g"));
   });
 
-  it("reconoce papeletas", () => {
-    expect(detectFormat(1000, 20)).toBe("papeleta");
+  it("reconoce sachets", () => {
+    expect(detectFormat(1000, 20)).toBe("sachet");
     expect(detectFormat(4200, 125)).toBe("bolsa");
     expect(detectFormat(1000, null)).toBe("unidad");
   });
@@ -24,7 +24,7 @@ describe("catálogo", () => {
   it("crea SKU únicos", () => {
     const taken = new Set(["VTL-ALMENDRA-125G"]);
     expect(skuFor("Almendra", 125, "bolsa", taken)).toBe("VTL-ALMENDRA-125G-2");
-    expect(skuFor("Pimienta negra", 20, "papeleta", new Set())).toBe("VTL-PIMIENTANE-PAP20G");
+    expect(skuFor("Pimienta negra", 20, "sachet", new Set())).toBe("VTL-PIMIENTANE-SACHET");
   });
 
   it("reparte la receta en cada tamaño y cuadra el total", () => {
@@ -46,10 +46,10 @@ describe("catálogo", () => {
     expect(priceForMargin(3000, 0.19, 0.4, 100)).toBe(6000);
   });
 
-  it("dice cuántos gramos caben en una papeleta de $1.000", () => {
+  it("dice cuántos gramos caben en un sachet de $1.000", () => {
     // $1.000 con IVA 19 % = $840 sin IVA; 60 % para costo = $504; pimienta a $40.000/kg → 12,5 g.
-    expect(papeletaMaxGrams({ priceGross: 1000, ivaRate: 0.19, costPerKg: 40000, minMargin: 0.4, packagingCost: 0, merma: 0 })).toBe(12.5);
-    expect(papeletaMaxGrams({ priceGross: 1000, ivaRate: 0.19, costPerKg: 0, minMargin: 0.4, packagingCost: 0, merma: 0 })).toBeNull();
+    expect(sachetMaxGrams({ priceGross: 1000, ivaRate: 0.19, costPerKg: 40000, minMargin: 0.4, packagingCost: 0, merma: 0 })).toBe(12.5);
+    expect(sachetMaxGrams({ priceGross: 1000, ivaRate: 0.19, costPerKg: 0, minMargin: 0.4, packagingCost: 0, merma: 0 })).toBeNull();
   });
 
   it("lee las recetas de Vendty", () => {
@@ -74,5 +74,22 @@ describe("catálogo", () => {
     expect(out.length).toBeGreaterThan(250);
     const premium = out.find((c) => c.name.startsWith("Mixtura Premium Vitalic 125"));
     expect(premium?.components).toHaveLength(6);
+  });
+});
+
+import { sachetGramsFor } from "@/lib/sachet";
+describe("regla del sachet", () => {
+  const rule = { sachetGramos: 20, sachetCostoUmbral: 300, sachetCostoMaximo: 350 };
+  it("pesa 20 g si 20 g cuestan hasta $300", () => {
+    expect(sachetGramsFor(12605, rule)).toBe(20); // cúrcuma: $252
+    expect(sachetGramsFor(15000, rule)).toBe(20); // justo $300
+  });
+  it("baja el gramaje cuando 20 g pasan de $300", () => {
+    expect(sachetGramsFor(75000, rule)).toBe(5); // cardamomo
+    expect(sachetGramsFor(47000, rule)).toBe(7); // clavo molido: $329
+    expect(sachetGramsFor(18344, rule)).toBe(19); // achiote en grano: $349
+  });
+  it("sin costo usa 20 g", () => {
+    expect(sachetGramsFor(0, rule)).toBe(20);
   });
 });

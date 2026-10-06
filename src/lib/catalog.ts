@@ -4,7 +4,7 @@ import { normalize } from "./units";
 
 export const FORMATS = {
   bolsa: "Bolsa",
-  papeleta: "Papeleta",
+  sachet: "Sachet",
   unidad: "Unidad",
 } as const;
 export type Format = keyof typeof FORMATS;
@@ -29,10 +29,10 @@ export function familyKey(productName: string): string {
   return normalize(familyNameOf(productName));
 }
 
-/** Papeleta: precio al público de unos $1.000 y pocos gramos. */
+/** Sachet: precio al público de unos $1.000 y pocos gramos. */
 export function detectFormat(priceGross: number, grams: number | null): Format {
   if (grams === null) return "unidad";
-  if (priceGross > 0 && priceGross <= 1100 && grams <= 40) return "papeleta";
+  if (priceGross > 0 && priceGross <= 1100 && grams <= 40) return "sachet";
   return "bolsa";
 }
 
@@ -49,7 +49,8 @@ function slug(text: string, max = 10): string {
 
 /** SKU único al estilo de Vitalic: VTL-ALMENDRA-125G, VTL-LINAZA-PAP20G. */
 export function skuFor(familyName: string, grams: number | null, format: Format, taken: Set<string>): string {
-  const size = grams === null ? "UND" : `${format === "papeleta" ? "PAP" : ""}${Math.round(grams)}G`;
+  // El sachet no lleva los gramos en el código: pueden cambiar con el costo del insumo.
+  const size = format === "sachet" ? "SACHET" : grams === null ? "UND" : `${Math.round(grams)}G`;
   const base = `VTL-${slug(familyName)}-${size}`;
   let sku = base;
   for (let n = 2; taken.has(sku); n++) sku = `${base}-${n}`;
@@ -111,10 +112,10 @@ export function priceForMargin(costNet: number, ivaRate: number, margin: number,
 }
 
 /**
- * Gramos máximos que caben en una papeleta de precio fijo sin bajar del margen mínimo.
- * Ej.: papeleta de $1.000 con IVA 19 %, pimienta a $40.000/kg y margen 40 % → 12 g.
+ * Gramos máximos que caben en un sachet de precio fijo sin bajar del margen mínimo.
+ * Ej.: sachet de $1.000 con IVA 19 %, pimienta a $40.000/kg y margen 40 % → 12 g.
  */
-export function papeletaMaxGrams(opts: {
+export function sachetMaxGrams(opts: {
   priceGross: number;
   ivaRate: number;
   costPerKg: number;

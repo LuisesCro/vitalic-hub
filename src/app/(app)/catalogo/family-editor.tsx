@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useMemo, useState } from "react";
-import { FORMATS, fmtGrams, marginOf, papeletaMaxGrams, priceForMargin, splitRecipe, type Format } from "@/lib/catalog";
+import { FORMATS, fmtGrams, marginOf, sachetMaxGrams, priceForMargin, splitRecipe, type Format } from "@/lib/catalog";
 import { unitCostFromComponents } from "@/lib/costing";
 import { fmtCOP, fmtPct } from "@/lib/format";
 import { packagingCostFor, type Settings } from "@/lib/settings-defaults";
@@ -92,18 +92,18 @@ export function FamilyEditor({
     );
     const price = num(p.priceGross);
     const margin = marginOf(price, iva, cost);
-    const suggested = cost !== null ? priceForMargin(cost, iva, settings.margenMinimo, p.format === "papeleta" ? 100 : settings.redondeoPrecio) : null;
+    const suggested = cost !== null ? priceForMargin(cost, iva, settings.margenMinimo, p.format === "sachet" ? 100 : settings.redondeoPrecio) : null;
     const maxGrams =
-      p.format === "papeleta" && blendedCostPerKg
-        ? papeletaMaxGrams({ priceGross: price || 1000, ivaRate: iva, costPerKg: blendedCostPerKg, minMargin: settings.margenMinimo, packagingCost: packagingCostFor(grams, settings), merma: settings.mermaEmpaque })
+      p.format === "sachet" && blendedCostPerKg
+        ? sachetMaxGrams({ priceGross: price || 1000, ivaRate: iva, costPerKg: blendedCostPerKg, minMargin: settings.margenMinimo, packagingCost: packagingCostFor(grams, settings), merma: settings.mermaEmpaque })
         : null;
     return { comps, grams, cost, margin, suggested, maxGrams };
   }
 
   function addPresentation(format: Format, grams: number) {
-    const draft: Presentation = { key: key(), format, grams: String(grams), priceGross: format === "papeleta" ? "1000" : "", sku: "", active: true, cost: "", custom: null };
+    const draft: Presentation = { key: key(), format, grams: String(grams), priceGross: format === "sachet" ? "1000" : "", sku: "", active: true, cost: "", custom: null };
     const { suggested } = evaluate(draft);
-    if (format !== "papeleta" && suggested) draft.priceGross = String(suggested);
+    if (format !== "sachet" && suggested) draft.priceGross = String(suggested);
     setPres((list) => [...list, draft]);
   }
   const update = (k: string, patch: Partial<Presentation>) => setPres((list) => list.map((p) => (p.key === k ? { ...p, ...patch } : p)));
@@ -233,7 +233,7 @@ export function FamilyEditor({
           {QUICK.map((g) => (
             <button key={g} type="button" onClick={() => addPresentation("bolsa", g)} className="btn-secondary">+ {fmtGrams(g)}</button>
           ))}
-          <button type="button" onClick={() => addPresentation("papeleta", 20)} className="btn-secondary">+ Papeleta $1.000</button>
+          <button type="button" onClick={() => addPresentation("sachet", 20)} className="btn-secondary">+ Sachet $1.000</button>
           <button type="button" onClick={() => addPresentation("bolsa", 0)} className="btn-secondary">+ Otro tamaño</button>
         </div>
 
@@ -275,12 +275,12 @@ export function FamilyEditor({
                   Utilidad: <strong style={{ color: tone }}>{ev.cost === null || !num(p.priceGross) ? "—" : fmtCOP(num(p.priceGross) / (1 + iva) - ev.cost)}</strong>
                   {" "}({ev.margin === null ? "—" : fmtPct(ev.margin)})
                 </span>
-                {ev.suggested && p.format !== "papeleta" && num(p.priceGross) !== ev.suggested && (
+                {ev.suggested && p.format !== "sachet" && num(p.priceGross) !== ev.suggested && (
                   <button type="button" onClick={() => update(p.key, { priceGross: String(ev.suggested) })} className="text-brand-700 underline dark:text-brand-500">
                     Usar {fmtCOP(ev.suggested)} (margen {fmtPct(settings.margenMinimo)})
                   </button>
                 )}
-                {p.format === "papeleta" && ev.maxGrams !== null && (
+                {p.format === "sachet" && ev.maxGrams !== null && (
                   <span className="text-muted">
                     Para {fmtPct(settings.margenMinimo)} de margen caben máximo <strong className="text-[var(--text)]">{ev.maxGrams} g</strong>
                     {!p.custom && num(p.grams) !== ev.maxGrams && (

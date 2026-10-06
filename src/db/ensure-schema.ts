@@ -87,6 +87,8 @@ const STATEMENTS = [
   // 0009_devoluciones_y_stock
   sql`ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "stock_units" numeric(14, 3)`,
   sql`ALTER TABLE "pos_sales" ADD COLUMN IF NOT EXISTS "return_of" integer`,
+  // 0010_sachet: la papeleta ahora se llama sachet
+  sql`UPDATE "products" SET "format" = 'sachet' WHERE "format" = 'papeleta'`,
   // 0007_pos
   sql`CREATE TABLE IF NOT EXISTS "pos_sales" (
     "id" serial PRIMARY KEY NOT NULL,
@@ -129,9 +131,10 @@ async function upToDate(): Promise<boolean> {
                (table_name = 'cash_sessions' and column_name = 'sales_breb') or
                (table_name = 'purchases' and column_name in ('payment_term', 'due_date')) or
                (table_name = 'bulk_sales' and column_name = 'pos_sale_id')))
+         + (select case when exists (select 1 from products where format = 'papeleta') then 0 else 1 end)
          + (select count(*) from information_schema.tables
              where table_schema = 'public' and table_name in ('cash_sessions', 'cash_movements', 'product_families', 'product_components', 'bulk_sales', 'supplier_payments', 'pos_sales')) as n`);
-  return Number(rows[0]?.n) === 18;
+  return Number(rows[0]?.n) === 19;
 }
 
 let ready: Promise<void> | null = null;

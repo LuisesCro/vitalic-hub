@@ -63,7 +63,7 @@ export const products = pgTable(
     active: boolean("active").notNull().default(true),
     // Familia a la que pertenece esta presentación (Almendra → 125 g, 250 g, 500 g, 1 kg).
     familyId: integer("family_id"),
-    format: text("format").notNull().default("bolsa"), // bolsa | papeleta | unidad
+    format: text("format").notNull().default("bolsa"), // bolsa | sachet | unidad
     // Inactiva solo porque se dio de baja su producto completo: vuelve al reactivarlo.
     pausedByFamily: boolean("paused_by_family").notNull().default(false),
     // Bolsas o unidades listas para vender. Null = no se lleva el conteo de este producto.
@@ -72,7 +72,7 @@ export const products = pgTable(
   (t) => [index("products_raw_idx").on(t.rawMaterialId), index("products_family_idx").on(t.familyId)],
 );
 
-// Producto "madre": nombre, categoría e IVA. Sus presentaciones (125 g, 250 g, papeleta…) son filas de products.
+// Producto "madre": nombre, categoría e IVA. Sus presentaciones (125 g, 250 g, sachet…) son filas de products.
 export const productFamilies = pgTable("product_families", {
   id: serial("id").primaryKey(),
   name: text("name").notNull().unique(),

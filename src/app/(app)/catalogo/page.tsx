@@ -47,8 +47,8 @@ export default async function CatalogoPage({ searchParams }: { searchParams: Pro
 
   return (
     <div className="space-y-4">
-      <PageHeader title="Catálogo" subtitle="Tus productos, sus presentaciones (125 g, 250 g, papeleta…) y la receta de cada una.">
-        <Link href="/catalogo/papeletas" className="btn-secondary">Papeletas $1.000</Link>
+      <PageHeader title="Catálogo" subtitle="Tus productos, sus presentaciones (125 g, 250 g, sachet…) y la receta de cada una.">
+        <Link href="/catalogo/sachets" className="btn-secondary">Sachets $1.000</Link>
         <Link href="/catalogo/nuevo" className="btn-primary">+ Nuevo producto</Link>
       </PageHeader>
 
@@ -119,7 +119,7 @@ export default async function CatalogoPage({ searchParams }: { searchParams: Pro
                   const color = m === null ? "var(--muted)" : m < s.margenMinimo ? "var(--bad)" : "var(--good)";
                   return (
                     <span key={p.id} className={`rounded-lg border border-[var(--border)] px-2 py-1 text-xs tabular-nums ${p.active ? "" : "opacity-50 line-through"}`}>
-                      {p.format === "papeleta" ? "Papeleta " : p.format === "unidad" ? `${FORMATS[p.format as Format]} ` : ""}
+                      {p.format === "sachet" ? "Sachet " : p.format === "unidad" ? `${FORMATS[p.format as Format]} ` : ""}
                       {p.format !== "unidad" && fmtGrams(p.grams)} · {fmtCOP(gross)} · <span style={{ color }}>{m === null ? "sin costo" : `gana ${fmtCOP(profit)} (${fmtPct(m)})`}</span>
                     </span>
                   );

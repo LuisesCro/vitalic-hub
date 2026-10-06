@@ -12,7 +12,7 @@ export function RecipesImport() {
       <form action={action} className="mt-3 space-y-3">
         <p className="text-sm text-muted">
           En Vendty abre <strong>Inventario → Productos compuestos</strong>, selecciona todo el informe, cópialo y pégalo
-          aquí. Se cargan los gramos reales de cada insumo por presentación (incluidas mixturas y papeletas).
+          aquí. Se cargan los gramos reales de cada insumo por presentación (incluidas mixturas y sachets).
         </p>
         <textarea name="text" required rows={6} className="input font-mono text-xs" placeholder="Nombre producto	Precio de compra	Precio de venta	Ingredientes…" />
         <button className="btn-primary" disabled={pending}>{pending ? "Cargando…" : "Cargar recetas"}</button>
