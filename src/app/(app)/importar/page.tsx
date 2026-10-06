@@ -3,6 +3,8 @@ import { count, max, min } from "drizzle-orm";
 import { db } from "@/db";
 import { products, rawMaterials, saleLines } from "@/db/schema";
 import { UploadForm } from "@/components/upload-form";
+import { todayISO } from "@/lib/format";
+import { DeductForm } from "./deduct-form";
 import { importBagStock, importCloses, importInventory, importProducts, importTransactions } from "./actions";
 
 export const metadata = { title: "Importar · Vitalic Hub" };
@@ -58,6 +60,15 @@ export default async function ImportarPage() {
           el empaque las suma. Los productos que no estén en el archivo no llevan conteo.
         </p>
         <UploadForm action={importBagStock} accept=".xls,.xlsx" button="Cargar conteo de bolsas" />
+      </section>
+      <section className="card space-y-2">
+        <h2 className="font-semibold">5. Descontar ventas importadas del inventario</h2>
+        <p className="text-sm text-muted">
+          Después de un conteo físico, lo que se vende en Vendty gasta insumo: cada bolsa descuenta los gramos de su receta
+          y lo vendido por peso descuenta los gramos vendidos. Elige los días <b>posteriores al conteo</b>. Cada día se descuenta
+          una sola vez, así que puedes repetirlo sin miedo. Las ventas hechas en la caja de Vitalic Hub descuentan solas.
+        </p>
+        <DeductForm from="2026-10-04" to={todayISO()} />
       </section>
     </div>
   );

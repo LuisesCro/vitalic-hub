@@ -10,6 +10,7 @@ import { gramsFromName } from "@/lib/units";
 import { parseInventoryCount, parseVendtyProducts, parseVendtyTransactions } from "@/lib/vendty";
 import { parseBagStock } from "@/lib/bag-stock";
 import { parseVendtyClose } from "@/lib/vendty-close";
+import { deductImportedSales } from "@/lib/sales-stock";
 import { isPosClose, parsePosClose, type PdfText } from "@/lib/vendty-pos-close";
 import { loadComponents, loadRawCosts } from "@/lib/components";
 import { unitCostFromComponents } from "@/lib/costing";
@@ -368,4 +369,21 @@ export async function importBagStock(_prev: ImportState, formData: FormData): Pr
   if (negatives) parts.push(`${negatives} venían en negativo y quedaron en 0.`);
   if (missing.length) parts.push(`${missing.length} no los encontré en el catálogo: ${missing.slice(0, 6).join(", ")}${missing.length > 6 ? "…" : ""}.`);
   return { ok: parts.join(" ") };
+}
+
+export type DeductState = { ok?: string; error?: string };
+
+/** Descuenta del inventario de insumos lo vendido en un rango de días (ventas importadas de Vendty). */
+export async function deductSalesFromInventory(_prev: DeductState, formData: FormData): Promise<DeductState> {
+  const session = await requireAdmin();
+  const from = String(formData.get("from") ?? "");
+  const to = String(formData.get("to") ?? "");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to) || from > to) return { error: "Elige un rango de fechas válido" };
+  const { applied, skipped } = await deductImportedSales({ from, to, userId: session.userId });
+  revalidatePath("/", "layout");
+  if (applied.length === 0) return { ok: skipped ? `Esos días ya estaban descontados (${skipped} movimientos).` : "No encontré ventas de productos con receta en esas fechas." };
+  const byMaterial = new Map<string, number>();
+  for (const a of applied) byMaterial.set(a.name, (byMaterial.get(a.name) ?? 0) + a.grams);
+  const top = [...byMaterial.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([n, g]) => `${n} ${(g / 1000).toLocaleString("es-CO", { maximumFractionDigits: 2 })} kg`);
+  return { ok: `Descontados ${byMaterial.size} insumos de las ventas del ${from} al ${to}${skipped ? ` (${skipped} ya estaban descontados)` : ""}. Lo que más salió: ${top.join(", ")}.` };
 }

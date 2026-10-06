@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq, like, or, sql } from "drizzle-orm";
+import { and, eq, inArray, like, or, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/db";
@@ -9,6 +9,7 @@ import { loadComponents, loadRawCosts } from "@/lib/components";
 import { quoteBulk } from "@/lib/bulk";
 import { unitCostFromComponents } from "@/lib/costing";
 import { applyMovement } from "@/lib/inventory";
+import { deductPosSale, restorePosSale } from "@/lib/sales-stock";
 import { adjustStockUnits, adjustStockUnitsBySku } from "@/lib/stock-units";
 import { fmtCOP, todayISO } from "@/lib/format";
 import { SALE_LINE_METHOD, cartTotals, isPosMethod, lineGross, settle, soldByWeight, type PosMethod } from "@/lib/pos";
@@ -124,6 +125,13 @@ export async function createSale(_prev: SaleState, formData: FormData): Promise<
     await tx.insert(saleLines).values(rowsToInsert);
     // Bolsas listas para vender: baja el conteo de los productos que lo llevan.
     for (const l of cartLines) if (!soldByWeight(l.p.name)) await adjustStockUnits(tx, l.p.id, -l.quantity);
+    // Insumos: cada bolsa gasta los gramos de su receta (lo vendido por peso, los gramos vendidos).
+    if (settings.descontarInsumoAlVender) {
+      await deductPosSale(tx, {
+        saleId: sale.id, userId: session.userId,
+        lines: cartLines.filter((l) => l.p.stockUnits === null).map((l) => ({ components: recipes.get(l.p.id) ?? [], quantity: l.quantity })),
+      });
+    }
     return sale.id;
   });
 
@@ -157,6 +165,7 @@ export async function voidSale(formData: FormData) {
     const sold = await tx.select({ sku: saleLines.sku, quantity: saleLines.quantity, name: saleLines.productName }).from(saleLines).where(eq(saleLines.invoice, `V-${id}`));
     for (const l of sold) if (!l.sku.startsWith("GRANEL-") && !soldByWeight(l.name)) await adjustStockUnitsBySku(tx, l.sku, l.quantity);
     await tx.update(saleLines).set({ excluded: true, excludedReason: `Venta anulada V-${id}: ${reason}` }).where(eq(saleLines.invoice, `V-${id}`));
+    await restorePosSale(tx, { saleId: id, label: `Anulación recibo V-${id}`, userId: null });
     // Granel dentro de la venta: devuelve los kilos al inventario.
     const bulks = await tx.select().from(bulkSales).where(eq(bulkSales.posSaleId, id));
     for (const b of bulks) {
@@ -247,6 +256,17 @@ export async function returnSale(_prev: ReturnState, formData: FormData): Promis
         };
       }),
     );
+    // Insumos de lo devuelto (solo si la venta los había descontado).
+    const [deducted] = await tx.select({ id: stockMovements.id }).from(stockMovements).where(like(stockMovements.note, `Recibo V-${sale.id} (descuento por receta)`)).limit(1);
+    if (deducted) {
+      const recipes = await loadComponents();
+      const skus = picked.filter((p) => !p.line.sku.startsWith("GRANEL-")).map((p) => p.line.sku);
+      const prods = skus.length ? await tx.select({ id: products.id, sku: products.sku, stockUnits: products.stockUnits }).from(products).where(inArray(products.sku, skus)) : [];
+      await restorePosSale(tx, {
+        saleId: sale.id, userId: session.userId, label: `Devolución recibo V-${ret.id} (de V-${sale.id})`,
+        lines: picked.flatMap((p) => { const pr = prods.find((x) => x.sku === p.line.sku); return pr && pr.stockUnits === null ? [{ components: recipes.get(pr.id) ?? [], quantity: p.qty }] : []; }),
+      });
+    }
     for (const p of picked) {
       if (p.line.sku.startsWith("GRANEL-")) {
         // Kilos de vuelta al inventario, en la misma proporción en que se descontaron.

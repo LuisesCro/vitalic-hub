@@ -23,6 +23,8 @@ export const DEFAULT_SETTINGS = {
   descuentoMaxCajera: 0.05,
   // Valor máximo de una devolución que la cajera puede hacer sola, de ventas del mismo día (en pesos).
   devolucionMaxCajera: 30000,
+  // 1 = cada venta de la caja descuenta del inventario los gramos de la receta; 0 = no (si empacas antes y registras el empaque).
+  descontarInsumoAlVender: 1,
 } as const;
 
 export type SettingKey = keyof typeof DEFAULT_SETTINGS;
@@ -55,5 +57,6 @@ export const SETTING_LABELS: Record<SettingKey, { label: string; kind: "pct" | "
   margenGranel3: { label: "Margen por kilo, bulto", kind: "pct" },
   margenGranelPiso: { label: "Margen mínimo al negociar por kilo (precio más bajo que ve la caja)", kind: "pct" },
   descuentoMaxCajera: { label: "Descuento máximo que puede dar la cajera al cobrar", kind: "pct" },
+  descontarInsumoAlVender: { label: "Descontar insumos del inventario en cada venta de la caja (1 = sí, 0 = no)", kind: "num" },
   devolucionMaxCajera: { label: "Devolución máxima que puede hacer la cajera sola (en pesos, ventas del mismo día)", kind: "cop" },
 };
