@@ -216,6 +216,7 @@ main > div > h1 + p {
     font-size: 11px;
     line-height: 1.35;
   }
+  .ticket-print .t-logo { display: block; width: 46px; height: 46px; margin: 0 auto 3px; }
   .ticket-print h1 { font-size: 15px; text-align: center; margin: 0; }
   .ticket-print .t-center { text-align: center; }
   .ticket-print .t-row { display: flex; justify-content: space-between; gap: 6px; }

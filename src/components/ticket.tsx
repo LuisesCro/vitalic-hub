@@ -31,6 +31,8 @@ export function PrintTicket({ data, label = "Imprimir tiquete", className = "btn
     <>
       <button type="button" id={id} onClick={print} className={className}>{label}</button>
       <div ref={ref} className="ticket-print" aria-hidden>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/brand/vitalic-icono-negro.svg" alt="" className="t-logo" />
         <h1>{B.name}</h1>
         <p className="t-center">
           NIT: {B.nit}<br />
