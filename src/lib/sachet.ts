@@ -12,3 +12,15 @@ export function sachetGramsFor(costPerKg: number, s: Pick<Settings, "sachetGramo
   if (perGram * base <= s.sachetCostoUmbral) return base;
   return Math.max(1, Math.min(base, Math.round(s.sachetCostoMaximo / perGram)));
 }
+
+/** Gramajes fijados a mano (por decisión del dueño); la regla de costo no los cambia. */
+const OVERRIDES: [RegExp, number][] = [
+  [/cardamomo/i, 4.5], // para que el costo no pase de $350
+  [/canela entera/i, 4],
+];
+
+/** Gramos del sachet de un producto: el fijado a mano si existe, si no la regla de costo. */
+export function sachetGramsForName(name: string, costPerKg: number, s: Parameters<typeof sachetGramsFor>[1]): number {
+  const hit = OVERRIDES.find(([re]) => re.test(name));
+  return hit ? hit[1] : sachetGramsFor(costPerKg, s);
+}

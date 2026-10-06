@@ -77,7 +77,7 @@ describe("catálogo", () => {
   });
 });
 
-import { sachetGramsFor } from "@/lib/sachet";
+import { sachetGramsFor, sachetGramsForName } from "@/lib/sachet";
 describe("regla del sachet", () => {
   const rule = { sachetGramos: 20, sachetCostoUmbral: 300, sachetCostoMaximo: 350 };
   it("pesa 20 g si 20 g cuestan hasta $300", () => {
@@ -91,5 +91,7 @@ describe("regla del sachet", () => {
   });
   it("sin costo usa 20 g", () => {
     expect(sachetGramsFor(0, rule)).toBe(20);
+    expect(sachetGramsForName("Cardamomo sachet", 75000, rule)).toBe(4.5);
+    expect(sachetGramsForName("Canela entera sachet", 78579, rule)).toBe(4);
   });
 });

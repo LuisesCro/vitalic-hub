@@ -6,7 +6,7 @@ import { PageHeader } from "@/components/ui";
 import { marginOf } from "@/lib/catalog";
 import { loadComponents, loadRawCosts } from "@/lib/components";
 import { fmtCOP, fmtPct } from "@/lib/format";
-import { sachetGramsFor } from "@/lib/sachet";
+import { sachetGramsForName } from "@/lib/sachet";
 import { requireAdmin } from "@/lib/session";
 import { getSettings } from "@/lib/settings";
 import { SachetActions } from "./sachet-actions";
@@ -28,7 +28,7 @@ export default async function SachetsPage() {
     const single = comps.length === 1;
     const costPerKg = single && comps[0].costPerKg && comps[0].costPerKg > 0 ? comps[0].costPerKg : null;
     const priceGross = Math.round(p.priceNet * (1 + p.ivaRate));
-    const rule = costPerKg !== null ? sachetGramsFor(costPerKg, s) : null;
+    const rule = costPerKg !== null ? sachetGramsForName(p.name, costPerKg, s) : null;
     const costNow = costPerKg !== null ? (content / 1000) * costPerKg * (1 + s.mermaEmpaque) : null;
     const costRule = costPerKg !== null && rule !== null ? (rule / 1000) * costPerKg * (1 + s.mermaEmpaque) : null;
     return { p, single, content, costPerKg, priceGross, rule, costNow, costRule, marginNow: marginOf(priceGross, p.ivaRate, costNow), marginRule: marginOf(priceGross, p.ivaRate, costRule) };

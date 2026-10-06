@@ -3,11 +3,11 @@
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
-import { productComponents, productFamilies, products, rawMaterials } from "@/db/schema";
+import { productComponents, productFamilies, products, rawMaterials, saleLines } from "@/db/schema";
 import { skuFor } from "@/lib/catalog";
 import { loadComponents } from "@/lib/components";
 import { matchRawMaterial } from "@/lib/matching";
-import { sachetGramsFor } from "@/lib/sachet";
+import { sachetGramsForName } from "@/lib/sachet";
 import { requireAdmin } from "@/lib/session";
 import { getSettings } from "@/lib/settings";
 
@@ -38,7 +38,7 @@ export async function applySachetRule(_prev: SachetState): Promise<SachetState> 
       const raw = comps[0].rawMaterialId;
       const cost = costs.get(raw) ?? 0;
       if (!(cost > 0)) noCost.push(p.name);
-      const grams = sachetGramsFor(cost, s);
+      const grams = sachetGramsForName(p.name, cost, s);
       const name = p.familyId && fams.get(p.familyId) ? `${fams.get(p.familyId)} sachet` : p.name;
       if (comps[0].grams === grams && p.grams === grams && p.name === name) { same++; continue; }
       await tx.update(products).set({ grams, rawMaterialId: raw, name }).where(eq(products.id, p.id));
@@ -90,7 +90,7 @@ export async function createMissingSachets(_prev: SachetState): Promise<SachetSt
       if (rawWithSachet.has(raw)) { skipped.push(`${f.name} (ya hay un sachet de ese insumo)`); continue; }
       rawWithSachet.add(raw);
       const cost = costOf.get(raw) ?? 0;
-      const grams = sachetGramsFor(cost, s);
+      const grams = sachetGramsForName(f.name, cost, s);
       const sku = skuFor(f.name, grams, "sachet", taken);
       taken.add(sku);
       const [row] = await tx
@@ -129,4 +129,31 @@ export async function archiveTinySachets(_prev: SachetState): Promise<SachetStat
   revalidatePath("/vender");
   revalidatePath("/sachets");
   return { ok: tiny.length ? `Archivé ${tiny.length} sachets de menos de ${MIN_GRAMS} g: ${tiny.map((p) => p.name).join(", ")}.` : `No hay sachets de menos de ${MIN_GRAMS} g.` };
+}
+
+const dupKey = (name: string) =>
+  name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\bsachet\b/g, "").replace(/\s+/g, " ").trim()
+    .split(" ").map((w) => (w.length > 3 && w.endsWith("s") ? w.slice(0, -1) : w)).join(" ");
+
+/** Une los sachets repetidos (mismo nombre, o igual salvo plural): deja el que más se ha vendido y archiva los demás. */
+export async function unifyDuplicateSachets(_prev: SachetState): Promise<SachetState> {
+  await requireAdmin();
+  const sachets = await db.select().from(products).where(and(eq(products.format, "sachet"), eq(products.active, true))).orderBy(asc(products.id));
+  const sold = new Map<string, number>();
+  for (const r of await db.select({ sku: saleLines.sku }).from(saleLines)) sold.set(r.sku, (sold.get(r.sku) ?? 0) + 1);
+  const groups = new Map<string, typeof sachets>();
+  for (const p of sachets) groups.set(dupKey(p.name), [...(groups.get(dupKey(p.name)) ?? []), p]);
+  const done: string[] = [];
+  const drop: number[] = [];
+  for (const g of groups.values()) {
+    if (g.length < 2) continue;
+    const [keep, ...rest] = [...g].sort((a, b) => (sold.get(b.sku) ?? 0) - (sold.get(a.sku) ?? 0) || a.id - b.id);
+    drop.push(...rest.map((r) => r.id));
+    done.push(`${keep.name} (quedó ${keep.sku}; archivé ${rest.map((r) => r.sku).join(", ")})`);
+  }
+  if (drop.length) await db.update(products).set({ active: false }).where(inArray(products.id, drop));
+  revalidatePath("/catalogo", "layout");
+  revalidatePath("/vender");
+  revalidatePath("/sachets");
+  return { ok: done.length ? `Unifiqué ${done.length} repetidos: ${done.join("; ")}.` : "No hay sachets repetidos." };
 }
