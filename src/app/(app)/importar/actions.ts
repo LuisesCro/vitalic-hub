@@ -139,6 +139,43 @@ export async function excludeSaleLine(formData: FormData) {
 }
 
 /**
+ * Enlaza una línea importada que quedó «SIN-CODIGO» con un producto del catálogo: le pone su código, nombre,
+ * IVA y costo, y descuenta del inventario lo que gasta su receta (una sola vez por línea).
+ */
+export async function linkSaleLine(formData: FormData) {
+  const session = await requireAdmin();
+  const id = Number(formData.get("id"));
+  const productId = Number(formData.get("productId"));
+  if (!id || !productId) return;
+  const [line] = await db.select().from(saleLines).where(eq(saleLines.id, id));
+  const [prod] = await db.select().from(products).where(eq(products.id, productId));
+  if (!line || !prod || line.sku !== "SIN-CODIGO") return;
+  const settings = await getSettings();
+  const recipes = await loadComponents();
+  const rawCosts = await loadRawCosts();
+  const comps = (recipes.get(prod.id) ?? []).map((c) => ({ rawMaterialId: c.rawMaterialId, grams: c.grams }));
+  const parts = comps.map((c) => ({ grams: c.grams, costPerKg: rawCosts.get(c.rawMaterialId) ?? null }));
+  const cost = unitCostFromComponents(prod, parts, settings) ?? 0;
+  const iva = prod.ivaRate;
+  const net = Math.round((line.total / (1 + iva)) * 100) / 100;
+  const day = bogotaDay(line.soldAt);
+  await db.transaction(async (tx) => {
+    await tx.update(saleLines).set({
+      sku: prod.sku, productName: prod.name, category: prod.category, unitCostNet: cost,
+      unitPriceNet: Math.round((net / line.quantity) * 100) / 100, subtotalNet: net, tax: Math.round((line.total - net) * 100) / 100,
+    }).where(eq(saleLines.id, id));
+    const note = `Línea #${id} enlazada a ${prod.sku} (descuento por receta)`;
+    const [done] = await tx.execute<{ n: string }>(dsql`select count(*) as n from stock_movements where note = ${note}`);
+    if (Number(done.n) === 0) {
+      for (const c of comps) {
+        if (c.grams * line.quantity > 0) await applyMovement(tx, { rawMaterialId: c.rawMaterialId, occurredOn: day, kind: "venta", grams: -c.grams * line.quantity, note, userId: session.userId });
+      }
+    }
+  });
+  revalidatePath("/", "layout");
+}
+
+/**
  * Inventario inicial o conteo general: deja cada insumo del archivo en la cantidad
  * contada y registra la diferencia como ajuste con fecha de hoy.
  */

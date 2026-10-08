@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { cashMovements, cashSessions, posSales, saleLines, users } from "@/db/schema";
-import { excludeSaleLine } from "../importar/actions";
+import { cashMovements, cashSessions, posSales, products, saleLines, users } from "@/db/schema";
+import { excludeSaleLine, linkSaleLine } from "../importar/actions";
 import { CASH_COLUMN, isPosMethod } from "@/lib/pos";
 import {
   MOVEMENT_KINDS, PAYMENT_METHODS, differenceStatus, expectedCash, totalSales, vendtyMethodKey,
@@ -77,12 +77,15 @@ export default async function CajaPage({ searchParams }: { searchParams: Promise
   // Ventas importadas (no de la caja de Hub) de ese día, para que el administrador las revise o excluya.
   const imported = session.role === "admin"
     ? await db
-        .select({ id: saleLines.id, invoice: saleLines.invoice, name: saleLines.productName, qty: saleLines.quantity, total: saleLines.total })
+        .select({ id: saleLines.id, sku: saleLines.sku, invoice: saleLines.invoice, name: saleLines.productName, qty: saleLines.quantity, total: saleLines.total })
         .from(saleLines)
         .where(sql`(${saleLines.soldAt} at time zone 'America/Bogota')::date = ${date} and not ${saleLines.excluded} and ${saleLines.invoice} not like 'V-%'`)
         .orderBy(asc(saleLines.invoice), asc(saleLines.id))
         .limit(200)
     : [];
+
+  const unlinked = imported.some((l) => l.sku === "SIN-CODIGO");
+  const catalog = unlinked ? await db.select({ id: products.id, name: products.name }).from(products).where(sql`${products.active}`).orderBy(asc(products.name)) : [];
 
   const month = today.slice(0, 7);
   const monthClosed = history.filter((h) => h.status === "cerrada" && h.businessDate.startsWith(month));
@@ -211,6 +214,13 @@ export default async function CajaPage({ searchParams }: { searchParams: Promise
                     <td>{l.invoice}</td><td>{l.name}</td><td className="text-right">{l.qty.toLocaleString("es-CO")}</td><td className="text-right">{fmtCOP(l.total)}</td>
                     <td>
                       <form action={excludeSaleLine}><input type="hidden" name="id" value={l.id} /><button className="text-xs text-muted underline">Excluir</button></form>
+                      {l.sku === "SIN-CODIGO" && (
+                        <form action={linkSaleLine} className="mt-1 flex gap-1">
+                          <input type="hidden" name="id" value={l.id} />
+                          <select name="productId" required defaultValue="" className="input text-xs"><option value="" disabled>Enlazar a…</option>{catalog.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
+                          <button className="btn-secondary text-xs">Enlazar</button>
+                        </form>
+                      )}
                     </td>
                   </tr>
                 ))}
