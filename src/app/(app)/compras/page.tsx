@@ -6,8 +6,9 @@ import { purchases, supplierPayments, suppliers } from "@/db/schema";
 import { UploadForm } from "@/components/upload-form";
 import { PageHeader, StatCard } from "@/components/ui";
 import { fmtCOP, todayISO } from "@/lib/format";
-import { daysUntil, payStatus, type PayStatus } from "@/lib/payables";
+import { PAYMENT_METHODS_SUPPLIER, daysUntil, payStatus, type PayStatus, type SupplierPaymentMethod } from "@/lib/payables";
 import { uploadInvoice } from "./actions";
+import { markPurchasePaid } from "./payments";
 import { PayBadge } from "./status-badge";
 
 export const metadata = { title: "Compras · Vitalic Hub" };
@@ -114,7 +115,7 @@ export default async function ComprasPage({ searchParams }: { searchParams: Prom
         </div>
         <table className="table-base">
           <thead>
-            <tr><th>Proveedor</th><th>Factura</th><th>Fecha</th><th>Vence</th><th className="text-right">Total</th><th className="text-right">Saldo</th><th>Pago</th><th>Inventario</th></tr>
+            <tr><th>Proveedor</th><th>Factura</th><th>Fecha</th><th>Vence</th><th className="text-right">Total</th><th className="text-right">Saldo</th><th>Pago</th><th>Inventario</th><th /></tr>
           </thead>
           <tbody>
             {list.map((r) => (
@@ -132,9 +133,20 @@ export default async function ComprasPage({ searchParams }: { searchParams: Prom
                   </span>
                   {r.source === "foto" && <span className="ml-1 text-xs text-muted">(foto)</span>}
                 </td>
+                <td>
+                  {r.balance > 0 && (
+                    <form action={markPurchasePaid} className="flex items-center gap-1">
+                      <input type="hidden" name="purchaseId" value={r.id} />
+                      <select name="method" defaultValue="transferencia" className="input text-xs" aria-label="Cómo se pagó">
+                        {(Object.keys(PAYMENT_METHODS_SUPPLIER) as SupplierPaymentMethod[]).map((m) => <option key={m} value={m}>{PAYMENT_METHODS_SUPPLIER[m]}</option>)}
+                      </select>
+                      <button className="btn-secondary whitespace-nowrap text-xs">✓ Marcar pagada</button>
+                    </form>
+                  )}
+                </td>
               </tr>
             ))}
-            {list.length === 0 && <tr><td colSpan={8} className="text-muted">No hay facturas en esta vista.</td></tr>}
+            {list.length === 0 && <tr><td colSpan={9} className="text-muted">No hay facturas en esta vista.</td></tr>}
           </tbody>
         </table>
       </section>

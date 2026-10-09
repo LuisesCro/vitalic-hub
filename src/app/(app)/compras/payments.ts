@@ -69,6 +69,26 @@ export async function addSupplierPayment(_prev: PayState, formData: FormData): P
   return { ok: `${left < 100 ? "Factura pagada por completo." : `Abono registrado. Saldo pendiente: ${fmtCOP(left)}.`}${cashNote}` };
 }
 
+/** «Marcar como pagada»: registra de una vez un pago por todo el saldo pendiente de la factura. */
+export async function markPurchasePaid(formData: FormData) {
+  await requireAdmin();
+  const purchaseId = Number(formData.get("purchaseId"));
+  const paidOn = String(formData.get("paidOn") ?? "") || todayISO();
+  const [row] = await db.select({ total: purchases.total }).from(purchases).where(eq(purchases.id, purchaseId));
+  if (!row) return;
+  const [{ paid }] = await db.select({ paid: sum(supplierPayments.amount).mapWith(Number) }).from(supplierPayments).where(eq(supplierPayments.purchaseId, purchaseId));
+  const { balance } = payStatus(row.total, paid ?? 0, null, paidOn);
+  if (!(balance > 0)) return;
+  const fd = new FormData();
+  fd.set("purchaseId", String(purchaseId));
+  fd.set("amount", String(Math.round(balance)));
+  fd.set("method", String(formData.get("method") ?? "transferencia"));
+  fd.set("paidOn", paidOn);
+  fd.set("note", "Marcada como pagada");
+  if (formData.get("fromCash") === "1") fd.set("fromCash", "1");
+  await addSupplierPayment({}, fd);
+}
+
 /** Borra un pago mal registrado (y su salida de caja si la caja sigue abierta). */
 export async function deleteSupplierPayment(formData: FormData) {
   await requireAdmin();

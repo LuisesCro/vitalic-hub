@@ -6,7 +6,7 @@ import { purchaseLines, purchases, rawMaterials, stockMovements, supplierPayment
 import { fmtCOP, fmtNum, todayISO } from "@/lib/format";
 import { PAYMENT_METHODS_SUPPLIER, daysUntil, payStatus, type SupplierPaymentMethod } from "@/lib/payables";
 import { PayForm } from "../pay-form";
-import { deleteSupplierPayment, updatePaymentTerms } from "../payments";
+import { deleteSupplierPayment, markPurchasePaid, updatePaymentTerms } from "../payments";
 import { PayBadge } from "../status-badge";
 import { completePurchaseLines, confirmPurchase, deleteDraft, saveDraft } from "../actions";
 
@@ -104,6 +104,22 @@ export default async function CompraPage({ params, searchParams }: { params: Pro
               </li>
             ))}
           </ul>
+        )}
+        {pay.balance > 0 && (
+          <form action={markPurchasePaid} className="flex flex-wrap items-end gap-3 rounded-lg border border-[var(--border)] p-3">
+            <input type="hidden" name="purchaseId" value={p.id} />
+            <label>
+              <span className="label">Cómo la pagaste</span>
+              <select name="method" defaultValue="transferencia" className="input">
+                {(Object.keys(PAYMENT_METHODS_SUPPLIER) as SupplierPaymentMethod[]).map((m) => <option key={m} value={m}>{PAYMENT_METHODS_SUPPLIER[m]}</option>)}
+              </select>
+            </label>
+            <label>
+              <span className="label">Fecha del pago</span>
+              <input type="date" name="paidOn" defaultValue={today} max={today} className="input" />
+            </label>
+            <button className="btn-primary">✓ Marcar como pagada ({fmtCOP(pay.balance)})</button>
+          </form>
         )}
         <PayForm purchaseId={p.id} balance={pay.balance} today={today} />
       </section>
