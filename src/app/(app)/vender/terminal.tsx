@@ -45,7 +45,10 @@ export function PosTerminal({ products, quick, isAdmin, bulkItems, settings }: {
   const [query, setQuery] = useState("");
   const [paying, setPaying] = useState(false);
   const [pay, setPay] = useState<PayRow[]>([{ key: 1, method: "efectivo", amount: "" }]);
-  const [discount, setDiscount] = useState("");
+  const [discount, setDiscountText] = useState("");
+  // Si se toca un botón de %, el descuento sigue a la venta (se recalcula al cambiar el carrito); si se escribe un valor, queda fijo.
+  const [discountPct, setDiscountPct] = useState<number | null>(null);
+  const setDiscount = (v: string) => { setDiscountText(v); setDiscountPct(null); };
   const [customer, setCustomer] = useState("");
   const [autoPrint, setAutoPrint] = useState(true);
   const [state, action, pending] = useActionState<SaleState, FormData>(createSale, {});
@@ -67,10 +70,11 @@ export function PosTerminal({ products, quick, isAdmin, bulkItems, settings }: {
     return bulkItems.filter((b) => q.split(/\s+/).every((w) => strip(b.name).includes(w))).slice(0, 6);
   }, [query, bulkItems]);
   const productGross = cart.reduce((t, l) => t + lineGross({ unitGross: l.product.priceGross, quantity: l.quantity, ivaRate: l.product.ivaRate }), 0);
+  const discountValue = discountPct !== null ? Math.round(productGross * discountPct) : num(discount);
   const maxDiscount = isAdmin ? Infinity : Math.floor(productGross * settings.descuentoMaxCajera);
   const totals = cartTotals(
     [...cart.map((l) => ({ unitGross: l.product.priceGross, quantity: l.quantity, ivaRate: l.product.ivaRate })), ...bulkCart.map((b) => ({ unitGross: b.total, quantity: 1, ivaRate: b.item.ivaRate }))],
-    Math.min(num(discount), maxDiscount),
+    Math.min(discountValue, maxDiscount),
   );
   const empty = cart.length === 0 && bulkCart.length === 0;
   const payments = pay.map((p) => ({ method: p.method, amount: p.amount === "" && pay.length === 1 && p.method !== "efectivo" ? totals.total : num(p.amount) }));
@@ -149,7 +153,7 @@ export function PosTerminal({ products, quick, isAdmin, bulkItems, settings }: {
   const payload = JSON.stringify({
     lines: cart.map((l) => ({ productId: l.product.id, quantity: l.quantity })),
     bulkLines: bulkCart.map((b) => ({ familyId: b.item.familyId, kg: b.kg, total: b.total })),
-    discount: Math.min(num(discount), maxDiscount), customer: customer.trim() || null,
+    discount: Math.min(discountValue, maxDiscount), customer: customer.trim() || null,
     payments: payments.map((p) => ({ method: p.method, amount: p.amount })),
   });
   const ticket: TicketData | undefined = state.receipt;
@@ -271,15 +275,15 @@ export function PosTerminal({ products, quick, isAdmin, bulkItems, settings }: {
                 <div className="space-y-1.5 text-sm">
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-muted">Descuento{isAdmin ? "" : ` (máx. ${Math.round(settings.descuentoMaxCajera * 100)} %)`}</span>
-                    <input value={discount} onChange={(e) => setDiscount(e.target.value)} inputMode="numeric" placeholder="0" className="input w-28 py-1 text-right" />
+                    <input value={discountPct !== null ? String(discountValue) : discount} onChange={(e) => setDiscount(e.target.value)} inputMode="numeric" placeholder="0" className="input w-28 py-1 text-right" />
                   </div>
                   <div className="flex flex-wrap gap-1.5">
                     {[0.05, 0.1].filter((pct) => isAdmin || pct <= settings.descuentoMaxCajera).map((pct) => (
-                      <button key={pct} type="button" onClick={() => setDiscount(String(Math.round(productGross * pct)))} className="btn-secondary px-2.5 py-1 text-xs">{pct * 100} %</button>
+                      <button key={pct} type="button" onClick={() => setDiscountPct(pct)} className={`${discountPct === pct ? "btn-primary" : "btn-secondary"} px-2.5 py-1 text-xs`}>{pct * 100} %</button>
                     ))}
-                    {num(discount) > 0 && <button type="button" onClick={() => setDiscount("")} className="px-2 py-1 text-xs text-muted underline">Quitar</button>}
+                    {discountValue > 0 && <button type="button" onClick={() => setDiscount("")} className="px-2 py-1 text-xs text-muted underline">Quitar</button>}
                   </div>
-                  {num(discount) > maxDiscount && <p className="text-xs" style={{ color: "var(--warn)" }}>Se aplicará el máximo permitido: {fmtCOP(maxDiscount)}.</p>}
+                  {discountValue > maxDiscount && <p className="text-xs" style={{ color: "var(--warn)" }}>Se aplicará el máximo permitido: {fmtCOP(maxDiscount)}.</p>}
                 </div>
               )}
               <div className="flex items-end justify-between border-t border-[var(--border)] pt-3">
