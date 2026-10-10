@@ -89,7 +89,7 @@ export default async function InicioPage() {
             <p className="text-sm text-muted">Ventas de hoy</p>
             <p className="text-3xl font-bold tabular-nums">{fmtCOP(today.total)}</p>
           </div>
-          <Link href="/vender" className="btn-secondary">Ver las ventas del día</Link>
+          <span className="flex flex-wrap gap-2"><Link href="/vender" className="btn-secondary">Ver las ventas del día</Link><Link href="/resultados/dia" className="btn-secondary">Utilidad por producto</Link></span>
         </div>
         {today.total > 0 ? (
           <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">

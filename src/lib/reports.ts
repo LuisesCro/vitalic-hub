@@ -55,6 +55,25 @@ export async function dayProfit(date: string): Promise<DayProfit> {
   return { sales, grossProfit: sales * grossMargin, grossMargin, costedShare: sales > 0 ? swc / sales : 1 };
 }
 
+export type DayProductRow = { sku: string; name: string; units: number; sales: number; cost: number | null; profit: number | null; margin: number | null };
+
+/** Utilidad por producto de un día, de menor a mayor margen (los que no tienen costo cargado van al final). */
+export async function dayProductProfit(date: string): Promise<DayProductRow[]> {
+  const rows = await db.execute<{ sku: string; name: string; units: string; sales: string; sales_with_cost: string; cost: string }>(sql`
+    select sku, max(product_name) as name, sum(quantity) as units, sum(subtotal_net) as sales,
+      sum(case when ${VALID_COST} then subtotal_net else 0 end) as sales_with_cost,
+      sum(case when ${VALID_COST} then quantity * unit_cost_net else 0 end) as cost
+    from sale_lines where not excluded and (sold_at at time zone 'America/Bogota')::date = ${date}
+    group by sku, lower(product_name)`);
+  return rows
+    .map((r) => {
+      const sales = Number(r.sales), swc = Number(r.sales_with_cost), cost = Number(r.cost);
+      const hasCost = swc > 0 && swc >= sales * 0.999;
+      return { sku: r.sku, name: r.name, units: Number(r.units), sales, cost: hasCost ? cost : null, profit: hasCost ? sales - cost : null, margin: hasCost ? (sales - cost) / sales : null };
+    })
+    .sort((a, b) => (a.margin === null ? 2 : 0) - (b.margin === null ? 2 : 0) || (a.margin ?? 0) - (b.margin ?? 0));
+}
+
 export type ProductRow = {
   sku: string;
   name: string;
