@@ -89,13 +89,8 @@ export default async function InicioPage() {
             <p className="text-sm text-muted">Ventas de hoy</p>
             <p className="text-3xl font-bold tabular-nums">{fmtCOP(today.total)}</p>
           </div>
-          <div className="text-right">
-            <p className="text-sm text-muted">Utilidad del día</p>
-            <p className="text-3xl font-bold tabular-nums" style={{ color: todayProfit.grossProfit > 0 ? "var(--good)" : undefined }}>{fmtCOP(Math.round(todayProfit.grossProfit))}</p>
-            <p className="text-xs text-muted">{todayProfit.sales > 0 ? `Margen ${fmtPct(todayProfit.grossMargin)} · bruta, antes de gastos fijos` : "Bruta, antes de gastos fijos"}</p>
-          </div>
+          <Link href="/vender" className="btn-secondary">Ver las ventas del día</Link>
         </div>
-        <div className="mt-2"><Link href="/vender" className="btn-secondary">Ver las ventas del día</Link></div>
         {today.total > 0 ? (
           <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
             {PAYMENT_METHODS.filter((m) => (today.byKey[m.key] ?? 0) > 0).map((m) => (
@@ -104,6 +99,11 @@ export default async function InicioPage() {
                 <p className="font-semibold tabular-nums">{fmtCOP(today.byKey[m.key] ?? 0)}</p>
               </div>
             ))}
+            <div className="rounded-lg px-3 py-2" style={{ background: todayProfit.grossProfit >= 0 ? "var(--good-bg)" : "var(--bad-bg)" }}>
+              <p className="text-xs text-muted">Utilidad del día</p>
+              <p className="font-semibold tabular-nums" style={{ color: todayProfit.grossProfit >= 0 ? "var(--good)" : "var(--bad)" }}>{fmtCOP(Math.round(todayProfit.grossProfit))}</p>
+              <p className="text-xs text-muted">Margen {fmtPct(todayProfit.grossMargin)}</p>
+            </div>
             {today.mixed > 0 && (
               <div className="rounded-lg bg-brand-50 px-3 py-2 dark:bg-white/5">
                 <p className="text-xs text-muted">Pagos mixtos</p>
