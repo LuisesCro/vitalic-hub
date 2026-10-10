@@ -41,6 +41,20 @@ export async function monthlySales(): Promise<MonthRow[]> {
   });
 }
 
+export type DayProfit = { sales: number; grossProfit: number; grossMargin: number; costedShare: number };
+
+/** Utilidad bruta de un día (ventas sin IVA menos costo de lo vendido), con el mismo cálculo que el mes. */
+export async function dayProfit(date: string): Promise<DayProfit> {
+  const [r] = await db.execute<{ sales: string; sales_with_cost: string; cost: string }>(sql`
+    select coalesce(sum(subtotal_net), 0) as sales,
+      coalesce(sum(case when ${VALID_COST} then subtotal_net else 0 end), 0) as sales_with_cost,
+      coalesce(sum(case when ${VALID_COST} then quantity * unit_cost_net else 0 end), 0) as cost
+    from sale_lines where not excluded and (sold_at at time zone 'America/Bogota')::date = ${date}`);
+  const sales = Number(r.sales), swc = Number(r.sales_with_cost), cost = Number(r.cost);
+  const grossMargin = swc > 0 ? (swc - cost) / swc : 0;
+  return { sales, grossProfit: sales * grossMargin, grossMargin, costedShare: sales > 0 ? swc / sales : 1 };
+}
+
 export type ProductRow = {
   sku: string;
   name: string;

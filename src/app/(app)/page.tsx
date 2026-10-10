@@ -4,7 +4,7 @@ import { count, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { cashSessions, purchases, rawMaterials, supplierPayments } from "@/db/schema";
 import { fmtCOP, fmtMonth, fmtPct, todayISO } from "@/lib/format";
-import { expensesByMonth, monthlySales, productPerformance, rawMaterialConsumption, trackedRawMaterialIds } from "@/lib/reports";
+import { dayProfit, expensesByMonth, monthlySales, productPerformance, rawMaterialConsumption, trackedRawMaterialIds } from "@/lib/reports";
 import { salesOfDay } from "@/lib/day-sales";
 import { PAYMENT_METHODS } from "@/lib/cash";
 import { getSettings } from "@/lib/settings";
@@ -46,6 +46,7 @@ export default async function InicioPage() {
     .where(eq(cashSessions.businessDate, todayISO()));
 
   const today = await salesOfDay(todayISO());
+  const todayProfit = await dayProfit(todayISO());
   const thisMonth = todayISO().slice(0, 7);
   const closed = months.filter((m) => m.month < thisMonth && m.invoices > 100).slice(-6); // meses completos recientes
   const last = closed.at(-1);
@@ -88,8 +89,13 @@ export default async function InicioPage() {
             <p className="text-sm text-muted">Ventas de hoy</p>
             <p className="text-3xl font-bold tabular-nums">{fmtCOP(today.total)}</p>
           </div>
-          <Link href="/vender" className="btn-secondary">Ver las ventas del día</Link>
+          <div className="text-right">
+            <p className="text-sm text-muted">Utilidad del día</p>
+            <p className="text-3xl font-bold tabular-nums" style={{ color: todayProfit.grossProfit > 0 ? "var(--good)" : undefined }}>{fmtCOP(Math.round(todayProfit.grossProfit))}</p>
+            <p className="text-xs text-muted">{todayProfit.sales > 0 ? `Margen ${fmtPct(todayProfit.grossMargin)} · bruta, antes de gastos fijos` : "Bruta, antes de gastos fijos"}</p>
+          </div>
         </div>
+        <div className="mt-2"><Link href="/vender" className="btn-secondary">Ver las ventas del día</Link></div>
         {today.total > 0 ? (
           <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
             {PAYMENT_METHODS.filter((m) => (today.byKey[m.key] ?? 0) > 0).map((m) => (
@@ -108,7 +114,7 @@ export default async function InicioPage() {
         ) : (
           <p className="mt-2 text-sm text-muted">Todavía no hay ventas hoy.</p>
         )}
-        <p className="mt-2 text-xs text-muted">Con IVA, tal como se cobra. Incluye lo cobrado en el HUB y lo importado de Vendty.</p>
+        <p className="mt-2 text-xs text-muted">Ventas con IVA, tal como se cobra (HUB e importado de Vendty). La utilidad es sin IVA: ventas menos el costo de lo vendido.{todayProfit.costedShare < 0.97 && todayProfit.sales > 0 ? ` Ojo: ${Math.round((1 - todayProfit.costedShare) * 100)} % de las ventas de hoy no tiene costo cargado, y la utilidad se estima con el margen del resto.` : ""}</p>
       </section>
 
       {months.length === 0 ? (
