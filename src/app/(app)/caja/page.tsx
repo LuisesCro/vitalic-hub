@@ -1,16 +1,16 @@
 import Link from "next/link";
 import { asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { cashMovements, cashSessions, posSales, products, saleLines, users } from "@/db/schema";
+import { cashMovements, cashSessions, products, saleLines, users } from "@/db/schema";
 import { excludeSaleLine, linkSaleLine } from "../importar/actions";
-import { CASH_COLUMN, isPosMethod } from "@/lib/pos";
 import {
-  MOVEMENT_KINDS, PAYMENT_METHODS, differenceStatus, expectedCash, totalSales, vendtyMethodKey,
+  MOVEMENT_KINDS, PAYMENT_METHODS, differenceStatus, expectedCash, totalSales,
   type MovementKind, type PaymentKey, type SalesByMethod,
 } from "@/lib/cash";
 import { fmtCOP, todayISO } from "@/lib/format";
 import { requireSession } from "@/lib/session";
 import { PrintTicket } from "@/components/ticket";
+import { salesOfDay } from "@/lib/day-sales";
 import { CloseForm } from "./close-form";
 import { addCashMovement, deleteCash, deleteCashMovement, correctCashSales, openCash, reopenCash } from "./actions";
 
@@ -22,33 +22,6 @@ const fmtDay = (iso: string) =>
   new Intl.DateTimeFormat("es-CO", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" }).format(new Date(`${iso}T00:00:00Z`));
 
 /** Ventas importadas de Vendty para ese día, por medio de pago (con IVA). */
-async function vendtyDay(date: string) {
-  const rows = await db
-    .select({ method: saleLines.paymentMethod, total: sql<number>`sum(${saleLines.total})`.mapWith(Number) })
-    .from(saleLines)
-    .where(sql`(${saleLines.soldAt} at time zone 'America/Bogota')::date = ${date} and not ${saleLines.excluded} and ${saleLines.invoice} not like 'V-%'`)
-    .groupBy(saleLines.paymentMethod);
-  const byKey: Partial<Record<PaymentKey, number>> = {};
-  let mixed = 0;
-  for (const r of rows) {
-    const key = vendtyMethodKey(r.method);
-    if (key) byKey[key] = (byKey[key] ?? 0) + r.total;
-    else mixed += r.total;
-  }
-  let total = rows.reduce((t, r) => t + r.total, 0);
-  // Ventas de la caja de Vitalic Hub: traen el valor exacto de cada medio, también en pagos mixtos.
-  const hub = await db.select({ payments: posSales.payments, total: posSales.total }).from(posSales).where(sql`${posSales.businessDate} = ${date} and ${posSales.status} = 'vigente'`);
-  for (const s of hub) {
-    total += s.total;
-    for (const p of JSON.parse(s.payments) as { method: string; amount: number }[]) {
-      if (!isPosMethod(p.method)) continue;
-      const key = CASH_COLUMN[p.method] as PaymentKey;
-      byKey[key] = (byKey[key] ?? 0) + p.amount;
-    }
-  }
-  return { byKey, mixed, total };
-}
-
 export default async function CajaPage({ searchParams }: { searchParams: Promise<{ fecha?: string }> }) {
   const session = await requireSession();
   const { fecha } = await searchParams;
@@ -59,7 +32,7 @@ export default async function CajaPage({ searchParams }: { searchParams: Promise
     db.select().from(cashSessions).where(eq(cashSessions.businessDate, date)),
     db.select().from(cashSessions).orderBy(desc(cashSessions.businessDate)).limit(31),
     db.select({ id: users.id, name: users.name }).from(users),
-    vendtyDay(date),
+    salesOfDay(date),
   ]);
   const names = new Map(people.map((u) => [u.id, u.name]));
   const movements = current
@@ -303,7 +276,7 @@ function ClosedSummary({
   s: Session;
   movements: { kind: string; amount: number }[];
   closedBy?: string;
-  vendty: Awaited<ReturnType<typeof vendtyDay>>;
+  vendty: Awaited<ReturnType<typeof salesOfDay>>;
 }) {
   const expected = expectedCash(s.openingCash, s.salesCash, movements);
   const diff = (s.countedCash ?? 0) - expected;

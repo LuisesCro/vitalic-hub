@@ -5,6 +5,8 @@ import { db } from "@/db";
 import { cashSessions, purchases, rawMaterials, supplierPayments } from "@/db/schema";
 import { fmtCOP, fmtMonth, fmtPct, todayISO } from "@/lib/format";
 import { expensesByMonth, monthlySales, productPerformance, rawMaterialConsumption, trackedRawMaterialIds } from "@/lib/reports";
+import { salesOfDay } from "@/lib/day-sales";
+import { PAYMENT_METHODS } from "@/lib/cash";
 import { getSettings } from "@/lib/settings";
 import { EmptyState, StatCard, TodoRow } from "@/components/ui";
 import { SalesChart } from "@/components/sales-chart";
@@ -43,6 +45,7 @@ export default async function InicioPage() {
     .from(cashSessions)
     .where(eq(cashSessions.businessDate, todayISO()));
 
+  const today = await salesOfDay(todayISO());
   const thisMonth = todayISO().slice(0, 7);
   const closed = months.filter((m) => m.month < thisMonth && m.invoices > 100).slice(-6); // meses completos recientes
   const last = closed.at(-1);
@@ -78,6 +81,35 @@ export default async function InicioPage() {
         <p className="text-sm text-muted first-letter:uppercase">{fmtToday()}</p>
         <h1>{greeting()}, {session.name}</h1>
       </div>
+
+      <section className="card">
+        <div className="flex flex-wrap items-end justify-between gap-2">
+          <div>
+            <p className="text-sm text-muted">Ventas de hoy</p>
+            <p className="text-3xl font-bold tabular-nums">{fmtCOP(today.total)}</p>
+          </div>
+          <Link href="/vender" className="btn-secondary">Ver las ventas del día</Link>
+        </div>
+        {today.total > 0 ? (
+          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+            {PAYMENT_METHODS.filter((m) => (today.byKey[m.key] ?? 0) > 0).map((m) => (
+              <div key={m.key} className="rounded-lg bg-brand-50 px-3 py-2 dark:bg-white/5">
+                <p className="text-xs text-muted">{m.label}</p>
+                <p className="font-semibold tabular-nums">{fmtCOP(today.byKey[m.key] ?? 0)}</p>
+              </div>
+            ))}
+            {today.mixed > 0 && (
+              <div className="rounded-lg bg-brand-50 px-3 py-2 dark:bg-white/5">
+                <p className="text-xs text-muted">Pagos mixtos</p>
+                <p className="font-semibold tabular-nums">{fmtCOP(today.mixed)}</p>
+              </div>
+            )}
+          </div>
+        ) : (
+          <p className="mt-2 text-sm text-muted">Todavía no hay ventas hoy.</p>
+        )}
+        <p className="mt-2 text-xs text-muted">Con IVA, tal como se cobra. Incluye lo cobrado en el HUB y lo importado de Vendty.</p>
+      </section>
 
       {months.length === 0 ? (
         <EmptyState
