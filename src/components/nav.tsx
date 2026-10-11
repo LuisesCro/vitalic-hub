@@ -49,6 +49,7 @@ const CASHIER: Group[] = [
     items: [
       { href: "/vender", label: "Vender", icon: IconCart },
       { href: "/caja", label: "Caja", icon: IconCash },
+      { href: "/caja/cierre", label: "Cierre del día", icon: IconReceipt },
       { href: "/caja/cotizar", label: "Cotizar", icon: IconScale },
       { href: "/sachets", label: "Guía de sachets", icon: IconBag },
       { href: "/ajustes", label: "Mi clave", icon: IconKey },
@@ -147,7 +148,7 @@ export function AppShell({
   return (
     <div className="min-h-dvh lg:grid lg:grid-cols-[256px_minmax(0,1fr)]">
       {/* Escritorio: barra lateral */}
-      <aside className="sticky top-0 hidden h-dvh flex-col justify-between border-r border-[var(--border)] bg-[var(--surface)] p-4 lg:flex">
+      <aside className="print:!hidden sticky top-0 hidden h-dvh flex-col justify-between border-r border-[var(--border)] bg-[var(--surface)] p-4 lg:flex">
         <div className="space-y-6">
           <div className="px-1">{Brand}</div>
           {NavList}
@@ -156,15 +157,15 @@ export function AppShell({
       </aside>
 
       {/* Celular: barra superior */}
-      <header className="sticky top-0 z-20 flex items-center justify-between border-b border-[var(--border)] bg-[var(--surface)]/90 px-4 py-2.5 backdrop-blur lg:hidden">
+      <header className="print:!hidden sticky top-0 z-20 flex items-center justify-between border-b border-[var(--border)] bg-[var(--surface)]/90 px-4 py-2.5 backdrop-blur lg:hidden">
         {Brand}
         <span className="text-sm text-muted">{current?.label}</span>
       </header>
 
-      <main className="mx-auto w-full min-w-0 max-w-6xl px-4 pb-28 pt-5 lg:px-8 lg:pb-12 lg:pt-8">{children}</main>
+      <main className="mx-auto w-full min-w-0 max-w-6xl px-4 pb-28 pt-5 lg:px-8 lg:pb-12 lg:pt-8 print:max-w-none print:p-0">{children}</main>
 
       {/* Celular: pestañas inferiores */}
-      <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-[var(--border)] bg-[var(--surface)]/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden">
+      <nav className="print:!hidden fixed inset-x-0 bottom-0 z-30 border-t border-[var(--border)] bg-[var(--surface)]/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden">
         <ul className="mx-auto flex max-w-md">
           {bottom.map((item) => {
             const active = isActive(path, item.href);
