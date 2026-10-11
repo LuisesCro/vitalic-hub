@@ -4,15 +4,16 @@ import { db } from "@/db";
 import { cashMovements, cashSessions, products, saleLines, users } from "@/db/schema";
 import { excludeSaleLine, linkSaleLine } from "../importar/actions";
 import {
-  MOVEMENT_KINDS, PAYMENT_METHODS, differenceStatus, expectedCash, totalSales,
+  DENOMINATIONS, MOVEMENT_KINDS, PAYMENT_METHODS, differenceStatus, expectedCash, totalSales,
   type MovementKind, type PaymentKey, type SalesByMethod,
 } from "@/lib/cash";
 import { fmtCOP, todayISO } from "@/lib/format";
 import { requireSession } from "@/lib/session";
+import { getSettings } from "@/lib/settings";
 import { PrintTicket } from "@/components/ticket";
 import { salesOfDay } from "@/lib/day-sales";
 import { CloseForm } from "./close-form";
-import { addCashMovement, deleteCash, deleteCashMovement, correctCashSales, openCash, reopenCash } from "./actions";
+import { addCashMovement, deleteCash, deleteCashMovement, correctCashSales, correctCount, openCash, reopenCash } from "./actions";
 
 export const metadata = { title: "Caja · Vitalic Hub" };
 
@@ -28,6 +29,7 @@ export default async function CajaPage({ searchParams }: { searchParams: Promise
   const today = todayISO();
   const date = fecha && /^\d{4}-\d{2}-\d{2}$/.test(fecha) && fecha <= today ? fecha : today;
 
+  const settings = await getSettings();
   const [[current], history, people, vendty] = await Promise.all([
     db.select().from(cashSessions).where(eq(cashSessions.businessDate, date)),
     db.select().from(cashSessions).orderBy(desc(cashSessions.businessDate)).limit(31),
@@ -168,6 +170,7 @@ export default async function CajaPage({ searchParams }: { searchParams: Promise
                 openingCash={current.openingCash}
                 movementsNet={expectedCash(0, 0, movements)}
                 suggested={vendty.byKey}
+                maxDiff={settings.cierreDiferenciaMax}
               />
             </section>
           ) : (
@@ -339,6 +342,21 @@ function ClosedSummary({
             </div>
             <input name="note" className="input" placeholder="Motivo (opcional)" />
             <button className="btn-secondary">Guardar corrección</button>
+          </form>
+        </details>
+      )}
+      {canReopen && (
+        <details className="rounded-lg border border-[var(--border)] p-3">
+          <summary className="cursor-pointer text-sm font-medium">Corregir el conteo del efectivo</summary>
+          <form action={correctCount} className="mt-3 space-y-3">
+            <input type="hidden" name="id" value={s.id} />
+            <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+              {DENOMINATIONS.map((d) => (
+                <label key={d}><span className="label">{fmtCOP(d)}</span><input name={`d${d}`} inputMode="numeric" className="input" placeholder="0" /></label>
+              ))}
+            </div>
+            <input name="note" className="input" placeholder="Motivo (opcional)" />
+            <button className="btn-secondary">Guardar el conteo</button>
           </form>
         </details>
       )}

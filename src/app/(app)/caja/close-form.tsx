@@ -12,11 +12,13 @@ export function CloseForm({
   openingCash,
   movementsNet,
   suggested,
+  maxDiff,
 }: {
   sessionId: number;
   openingCash: number;
   movementsNet: number;
   suggested: Partial<Record<PaymentKey, number>>;
+  maxDiff: number;
 }) {
   const [state, action, pending] = useActionState<CloseState, FormData>(closeCash, {});
   const [sales, setSales] = useState<Record<string, string>>(() =>
@@ -24,6 +26,7 @@ export function CloseForm({
   );
   const [counts, setCounts] = useState<Record<string, string>>({});
   const [typedTotal, setTypedTotal] = useState("");
+  const [confirmed, setConfirmed] = useState(false);
 
   const countsNum = Object.fromEntries(Object.entries(counts).map(([k, v]) => [k, digits(v)]));
   const byBills = sumDenominations(countsNum);
@@ -32,6 +35,7 @@ export function CloseForm({
   const expected = openingCash + digits(sales.salesCash ?? "") + movementsNet;
   const diff = counted === null ? null : counted - expected;
   const status = diff === null ? null : differenceStatus(diff);
+  const bigDiff = diff !== null && Math.abs(diff) > maxDiff;
 
   return (
     <form action={action} className="space-y-4">
@@ -106,12 +110,23 @@ export function CloseForm({
         </div>
       </div>
 
+      {bigDiff && (
+        <div className="space-y-2 rounded-lg border-2 border-red-500 bg-red-50 p-3 text-sm dark:bg-red-950/30">
+          <p className="font-semibold text-red-700 dark:text-red-400">¡Revisa el conteo! La diferencia es de {fmtCOP(diff)}.</p>
+          <p>¿Contaste <strong>todos</strong> los billetes y monedas? Casi siempre una diferencia tan grande es una casilla sin llenar. Vuelve a revisar las cantidades de arriba.</p>
+          <label className="flex items-center gap-2 font-medium">
+            <input type="checkbox" name="confirmDiff" value="1" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} />
+            Ya revisé el conteo y la diferencia es real
+          </label>
+        </div>
+      )}
+
       <label className="block">
         <span className="label">Nota (opcional)</span>
         <input name="note" className="input" placeholder="Ej.: faltante por vuelto mal dado" />
       </label>
       {state.error && <p className="text-sm text-red-600">{state.error}</p>}
-      <button className="btn-primary" disabled={pending}>{pending ? "Cerrando…" : "Cerrar caja"}</button>
+      <button className="btn-primary" disabled={pending || (bigDiff && !confirmed)}>{pending ? "Cerrando…" : "Cerrar caja"}</button>
     </form>
   );
 }

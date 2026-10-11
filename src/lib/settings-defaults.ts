@@ -23,6 +23,8 @@ export const DEFAULT_SETTINGS = {
   descuentoMaxCajera: 0.05,
   // Valor máximo de una devolución que la cajera puede hacer sola, de ventas del mismo día (en pesos).
   devolucionMaxCajera: 30000,
+  // Si al cerrar la caja la diferencia pasa de este valor, el cierre pide revisar el conteo y confirmarlo (en pesos).
+  cierreDiferenciaMax: 20000,
   // 1 = cada venta de la caja descuenta del inventario los gramos de la receta; 0 = no (si empacas antes y registras el empaque).
   descontarInsumoAlVender: 1,
   // Regla de los sachets de $1.000: todos pesan 20 g, salvo que 20 g del insumo cuesten más del umbral;
@@ -66,5 +68,6 @@ export const SETTING_LABELS: Record<SettingKey, { label: string; kind: "pct" | "
   sachetGramos: { label: "Gramos de un sachet", kind: "num" },
   sachetCostoUmbral: { label: "Sachet: si 20 g del insumo cuestan más de este valor, se baja el gramaje", kind: "cop" },
   sachetCostoMaximo: { label: "Sachet: costo máximo del insumo cuando se baja el gramaje", kind: "cop" },
+  cierreDiferenciaMax: { label: "Diferencia de caja a partir de la cual el cierre pide revisar el conteo (en pesos)", kind: "cop" },
   devolucionMaxCajera: { label: "Devolución máxima que puede hacer la cajera sola (en pesos, ventas del mismo día)", kind: "cop" },
 };

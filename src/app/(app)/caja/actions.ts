@@ -5,8 +5,9 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
 import { cashMovements, cashSessions } from "@/db/schema";
-import { DENOMINATIONS, MOVEMENT_KINDS, PAYMENT_METHODS, isMovementKind, parsePesos, sumDenominations } from "@/lib/cash";
-import { todayISO } from "@/lib/format";
+import { DENOMINATIONS, MOVEMENT_KINDS, PAYMENT_METHODS, expectedCash, isMovementKind, parsePesos, sumDenominations } from "@/lib/cash";
+import { fmtCOP, todayISO } from "@/lib/format";
+import { getSettings } from "@/lib/settings";
 import { requireAdmin, requireSession } from "@/lib/session";
 
 function validDate(value: FormDataEntryValue | null): string | null {
@@ -86,6 +87,15 @@ export async function closeCash(_prev: CloseState, formData: FormData): Promise<
   const nextBase = nextBaseRaw === "" ? null : parsePesos(nextBaseRaw);
   if (nextBase !== null && nextBase > countedCash) return { error: "La base para mañana no puede ser mayor que el efectivo contado" };
 
+  // Diferencia grande: casi siempre es un conteo incompleto (faltó llenar billetes o monedas). Se pide confirmar.
+  const maxDiff = (await getSettings()).cierreDiferenciaMax;
+  const [open] = await db.select({ openingCash: cashSessions.openingCash }).from(cashSessions).where(eq(cashSessions.id, sessionId));
+  const moves = await db.select({ kind: cashMovements.kind, amount: cashMovements.amount }).from(cashMovements).where(eq(cashMovements.sessionId, sessionId));
+  const expected = expectedCash(open?.openingCash ?? 0, sales.salesCash, moves);
+  if (Math.abs(countedCash - expected) > maxDiff && formData.get("confirmDiff") !== "1") {
+    return { error: `La diferencia es de ${fmtCOP(countedCash - expected)}. Revisa que hayas contado todos los billetes y monedas, y marca la casilla de confirmación para cerrar.` };
+  }
+
   const updated = await db
     .update(cashSessions)
     .set({
@@ -133,6 +143,28 @@ export async function correctCashSales(formData: FormData) {
   await db
     .update(cashSessions)
     .set({ ...sales, closingNote: [current.note, note ? `Corrección: ${note}` : null].filter(Boolean).join(" · ") || null })
+    .where(eq(cashSessions.id, id));
+  refresh();
+}
+
+/** Corrige el conteo de efectivo de una caja ya cerrada (por billetes y monedas), dejando quién la cerró. Solo administradores. */
+export async function correctCount(formData: FormData) {
+  await requireAdmin();
+  const id = Number(formData.get("id"));
+  const counts: Record<string, number> = {};
+  for (const d of DENOMINATIONS) {
+    const n = parsePesos(formData.get(`d${d}`));
+    if (n > 0) counts[String(d)] = n;
+  }
+  const total = sumDenominations(counts);
+  if (!(total > 0)) return;
+  const note = String(formData.get("note") ?? "").trim();
+  const [current] = await db.select({ note: cashSessions.closingNote, counted: cashSessions.countedCash }).from(cashSessions).where(eq(cashSessions.id, id));
+  if (!current) return;
+  const msg = `Conteo corregido de ${fmtCOP(current.counted)} a ${fmtCOP(total)}${note ? `: ${note}` : ""}`;
+  await db
+    .update(cashSessions)
+    .set({ countedCash: total, denominations: JSON.stringify(counts), closingNote: [current.note, msg].filter(Boolean).join(" · ") })
     .where(eq(cashSessions.id, id));
   refresh();
 }
