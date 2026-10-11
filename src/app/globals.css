@@ -200,6 +200,7 @@ main > div > h1 + p {
 /* El tiquete de 80 mm se imprime desde un iframe aislado (components/ticket.tsx); aquí solo se oculta su copia en pantalla. */
 .ticket-print { display: none; }
 @media print {
+  @page { margin: 12mm; }
   html, body { background: #fff !important; }
 }
 

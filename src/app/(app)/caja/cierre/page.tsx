@@ -13,9 +13,9 @@ export const metadata = { title: "Cierre de caja · Vitalic Hub" };
 const hhmm = (d: Date | null) => (d ? new Intl.DateTimeFormat("es-CO", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "America/Bogota" }).format(d) : "—");
 const fmtDay = (iso: string) => new Date(iso + "T12:00:00").toLocaleDateString("es-CO", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, children, split }: { title: string; children: React.ReactNode; split?: boolean }) {
   return (
-    <section className="mt-5 break-inside-avoid">
+    <section className={`mt-5 ${split ? "" : "break-inside-avoid"}`}>
       <h2 className="mb-1 border-b border-black/60 pb-1 text-center text-sm font-bold uppercase tracking-wide">{title}</h2>
       {children}
     </section>
@@ -91,12 +91,12 @@ export default async function CierrePage({ searchParams }: { searchParams: Promi
         {cash && cash.status !== "cerrada" && <p className="mt-1 text-xs font-semibold" style={{ color: "var(--warn)" }}>Cierre parcial: la caja todavía está abierta.</p>}
       </header>
 
-      <Section title="Productos">
+      <Section title="Productos" split>
         <table className="w-full text-xs">
           <thead><tr className="border-b border-black/30 text-left"><th className="py-1">Código</th><th>Producto</th><th className="text-right">Cant.</th><th className="text-right">Valor</th></tr></thead>
           <tbody>
             {items.map((i) => (
-              <tr key={i.sku + i.name} className="border-b border-black/10 align-top">
+              <tr key={i.sku + i.name} className="break-inside-avoid border-b border-black/10 align-top">
                 <td className="max-w-[9rem] break-all py-0.5 pr-2">{i.sku === "SIN-CODIGO" ? "—" : i.sku}</td>
                 <td className="pr-2">{i.name}</td>
                 <td className="text-right tabular-nums">{fmtNum(Number(i.qty))}</td>
