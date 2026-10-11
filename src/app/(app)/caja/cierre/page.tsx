@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { asc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { cashMovements, cashSessions, users } from "@/db/schema";
-import { MOVEMENT_KINDS, PAYMENT_METHODS, differenceStatus, expectedCash, isMovementKind } from "@/lib/cash";
+import { cashMovements, cashSessions, posSales, users } from "@/db/schema";
+import { PAYMENT_METHODS, differenceStatus, expectedCash } from "@/lib/cash";
+import { POS_METHODS } from "@/lib/pos";
 import { salesOfDay } from "@/lib/day-sales";
 import { fmtCOP, fmtNum, todayISO } from "@/lib/format";
 import { requireSession } from "@/lib/session";
@@ -35,6 +36,7 @@ export default async function CierrePage({ searchParams }: { searchParams: Promi
   const moves = cash ? await db.select().from(cashMovements).where(eq(cashMovements.sessionId, cash.id)).orderBy(asc(cashMovements.createdAt)) : [];
   const people = new Map((await db.select({ id: users.id, name: users.name }).from(users)).map((u) => [u.id, u.name]));
   const day = await salesOfDay(date);
+  const receipts = await db.select().from(posSales).where(eq(posSales.businessDate, date)).orderBy(asc(posSales.id));
 
   const items = await db.execute<{ sku: string; name: string; qty: string; total: string }>(sql`
     select sku, max(product_name) as name, sum(quantity) as qty, sum(total) as total
@@ -114,6 +116,27 @@ export default async function CierrePage({ searchParams }: { searchParams: Promi
         {day.mixed > 0 && <Row label="Pagos mixtos (sin detallar)" value={fmtCOP(day.mixed)} />}
         <Row label="Total" value={fmtCOP(totalSold)} bold />
       </Section>
+
+      {receipts.length > 0 && (
+        <Section title="Recibos de la caja del HUB" split>
+          <table className="w-full text-xs">
+            <thead><tr className="border-b border-black/30 text-left"><th className="py-1">Recibo</th><th>Hora</th><th>Pago</th><th>Atendió</th><th className="text-right">Total</th></tr></thead>
+            <tbody>
+              {receipts.map((r) => {
+                const pays = (JSON.parse(r.payments) as { method: string; amount: number }[]).map((p) => POS_METHODS[p.method as keyof typeof POS_METHODS] ?? p.method).join(" + ");
+                const void_ = r.status === "anulada";
+                return (
+                  <tr key={r.id} className={`break-inside-avoid border-b border-black/10 ${void_ ? "line-through opacity-60" : ""}`}>
+                    <td className="py-0.5">V-{r.id}{r.returnOf ? ` (devolución de V-${r.returnOf})` : ""}{void_ ? " · ANULADA" : ""}</td>
+                    <td>{hhmm(r.soldAt)}</td><td>{pays}</td><td>{people.get(r.createdBy ?? 0) ?? "—"}</td>
+                    <td className="text-right tabular-nums">{fmtCOP(r.total)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </Section>
+      )}
 
       <Section title="Ingresos de efectivo">
         {incomes.length ? incomes.map((m) => <Row key={m.id} label={`${m.category}${m.note ? ` · ${m.note}` : ""}`} value={fmtCOP(m.amount)} />) : <Row label="Sin ingresos" value={fmtCOP(0)} />}
