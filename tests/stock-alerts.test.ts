@@ -4,7 +4,11 @@ import { bagAlert, rawAlert } from "@/lib/stock-alert-rules";
 describe("alerta de bolsas", () => {
   it("agotado cuando no hay", () => {
     expect(bagAlert(0, 2, 3, 7)).toEqual({ level: "agotado", days: 0 });
-    expect(bagAlert(-1, 0, 3, 7)?.level).toBe("agotado");
+    expect(bagAlert(-1, 1, 3, 7)?.level).toBe("agotado");
+  });
+  it("en cero y sin venta reciente no avisa", () => {
+    expect(bagAlert(0, 0, 3, 7)).toBeNull();
+    expect(rawAlert(0, 0, 0, 14)).toBeNull();
   });
   it("bajo cuando quedan pocas unidades", () => {
     expect(bagAlert(3, 0, 3, 7)?.level).toBe("bajo");
