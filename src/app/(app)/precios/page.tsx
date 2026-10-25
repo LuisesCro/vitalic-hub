@@ -9,6 +9,7 @@ import { fmtCOP, fmtPct } from "@/lib/format";
 import { margin, recommendPrice, RULE_LABELS } from "@/lib/pricing";
 import { getSettings } from "@/lib/settings";
 import { CompetitorForm } from "./competitor-form";
+import { setProductPrice } from "./actions";
 
 export const metadata = { title: "Precios · Vitalic Hub" };
 
@@ -77,7 +78,7 @@ export default async function PreciosPage({ searchParams }: { searchParams: Prom
           <thead>
             <tr>
               <th>Producto</th><th className="text-right">Costo</th><th className="text-right">Precio actual</th><th className="text-right">Margen</th>
-              <th>Competencia</th><th className="text-right">Recomendado</th><th className="text-right">Cambio</th><th className="text-right">Margen nuevo</th><th>Regla</th>
+              <th>Competencia</th><th className="text-right">Recomendado</th><th className="text-right">Cambio</th><th className="text-right">Margen nuevo</th><th>Regla</th><th>Nuevo precio</th>
             </tr>
           </thead>
           <tbody>
@@ -94,9 +95,16 @@ export default async function PreciosPage({ searchParams }: { searchParams: Prom
                 </td>
                 <td className="text-right">{fmtPct(r.rec.marginAtRecommended)}</td>
                 <td className="text-xs text-muted">{RULE_LABELS[r.rec.rule]}</td>
+                <td>
+                  <form action={setProductPrice} className="flex gap-1">
+                    <input type="hidden" name="id" value={r.p.id} />
+                    <input name="price" inputMode="numeric" placeholder={String(r.currentGross)} className="input w-24" />
+                    <button className="btn-secondary">Guardar</button>
+                  </form>
+                </td>
               </tr>
             ))}
-            {table.length === 0 && <tr><td colSpan={9} className="text-muted">No hay productos en esta vista.</td></tr>}
+            {table.length === 0 && <tr><td colSpan={10} className="text-muted">No hay productos en esta vista.</td></tr>}
           </tbody>
         </table>
       </div>

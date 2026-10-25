@@ -1,5 +1,6 @@
 "use server";
 
+import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { competitorPrices, competitors, products } from "@/db/schema";
@@ -41,4 +42,19 @@ export async function uploadCompetitorCatalog(_prev: CompetitorState, formData: 
   for (let i = 0; i < values.length; i += 500) await db.insert(competitorPrices).values(values.slice(i, i + 500));
   revalidatePath("/precios");
   return { ok: `${name}: ${rows.length} precios cargados, ${matched} emparejados con productos de Vitalic.` };
+}
+
+/** Cambia el precio al público (con IVA) de un producto: guarda el precio sin IVA según el IVA del producto. */
+export async function setProductPrice(formData: FormData) {
+  await requireAdmin();
+  const id = Number(formData.get("id"));
+  const gross = Number(String(formData.get("price") ?? "").replace(/[^0-9]/g, ""));
+  if (!id || !(gross > 0)) return;
+  const [p] = await db.select({ iva: products.ivaRate }).from(products).where(eq(products.id, id));
+  if (!p) return;
+  await db.update(products).set({ priceNet: Math.round((gross / (1 + p.iva)) * 100) / 100 }).where(eq(products.id, id));
+  revalidatePath("/precios");
+  revalidatePath("/vender");
+  revalidatePath("/catalogo", "layout");
+  revalidatePath("/", "layout");
 }
