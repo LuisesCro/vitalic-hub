@@ -1,4 +1,6 @@
 import { PageHeader } from "@/components/ui";
+import { StockAlerts } from "@/components/stock-alerts";
+import { stockAlerts } from "@/lib/stock-alerts";
 import { PrintTicket } from "@/components/ticket";
 import { fmtCOP, todayISO } from "@/lib/format";
 import { POS_METHODS } from "@/lib/pos";
@@ -19,12 +21,14 @@ export default async function VenderPage() {
   const { all, quick } = await posProducts();
   const bulkItems = toPublic(await quoteItems(), settings, false);
   const sales = await todaySales(today);
+  const alerts = await stockAlerts({ insumos: false });
   const valid = sales.filter((s) => s.status === "vigente");
   const soldCount = valid.filter((s) => !s.returnOf).length;
   const sold = valid.reduce((t, s) => t + s.total, 0);
   return (
     <div className="space-y-4">
       <PageHeader title="Vender" subtitle={`Hoy: ${soldCount} ventas por ${fmtCOP(sold)}`} />
+      <StockAlerts alerts={alerts} limit={6} title="Por empacar o reponer" compact />
       <PosTerminal products={all} quick={quick} isAdmin={session.role === "admin"} bulkItems={bulkItems} settings={settings} />
       {sales.length > 0 && (
         <section className="card overflow-x-auto sm:overflow-visible">

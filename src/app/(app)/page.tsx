@@ -6,6 +6,8 @@ import { cashSessions, purchases, rawMaterials, supplierPayments } from "@/db/sc
 import { fmtCOP, fmtMonth, fmtPct, todayISO } from "@/lib/format";
 import { dayProfit, expensesByMonth, monthlySales, productPerformance, rawMaterialConsumption, trackedRawMaterialIds } from "@/lib/reports";
 import { salesOfDay } from "@/lib/day-sales";
+import { stockAlerts } from "@/lib/stock-alerts";
+import { StockAlerts } from "@/components/stock-alerts";
 import { PAYMENT_METHODS } from "@/lib/cash";
 import { getSettings } from "@/lib/settings";
 import { EmptyState, StatCard, TodoRow } from "@/components/ui";
@@ -45,6 +47,7 @@ export default async function InicioPage() {
     .from(cashSessions)
     .where(eq(cashSessions.businessDate, todayISO()));
 
+  const alerts = await stockAlerts({ insumos: true });
   const today = await salesOfDay(todayISO());
   const todayProfit = await dayProfit(todayISO());
   const thisMonth = todayISO().slice(0, 7);
@@ -82,6 +85,8 @@ export default async function InicioPage() {
         <p className="text-sm text-muted first-letter:uppercase">{fmtToday()}</p>
         <h1>{greeting()}, {session.name}</h1>
       </div>
+
+      <StockAlerts alerts={alerts} limit={10} />
 
       <section className="card">
         <div className="flex flex-wrap items-end justify-between gap-2">

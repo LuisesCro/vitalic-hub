@@ -5,6 +5,8 @@ import { rawMaterials } from "@/db/schema";
 import { fmtCOP, fmtNum } from "@/lib/format";
 import { rawMaterialConsumption, trackedRawMaterialIds } from "@/lib/reports";
 import { recordCount } from "./actions";
+import { StockAlerts } from "@/components/stock-alerts";
+import { stockAlerts } from "@/lib/stock-alerts";
 
 export const metadata = { title: "Inventario · Vitalic Hub" };
 
@@ -17,6 +19,7 @@ export default async function InventarioPage() {
     rawMaterialConsumption(90),
     trackedRawMaterialIds(),
   ]);
+  const alerts = await stockAlerts({ insumos: true });
   const rows = materials
     .map((m) => {
       const perDay = consumption.get(m.id) ?? 0;
@@ -33,6 +36,7 @@ export default async function InventarioPage() {
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-semibold">Inventario de materia prima</h1>
+      <StockAlerts alerts={alerts} limit={40} compact />
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         <div className="card"><p className="label">Valor del inventario</p><p className="text-lg font-semibold">{fmtCOP(totalValue)}</p></div>
         <div className="card"><p className="label">Insumos para pedir</p><p className="text-lg font-semibold">{toOrder}</p></div>

@@ -25,6 +25,11 @@ export const DEFAULT_SETTINGS = {
   devolucionMaxCajera: 30000,
   // Si al cerrar la caja la diferencia pasa de este valor, el cierre pide revisar el conteo y confirmarlo (en pesos).
   cierreDiferenciaMax: 20000,
+  // Alertas de inventario: una bolsa de producto avisa cuando quedan estas unidades o menos, o cuando el stock alcanza para menos de estos días de venta.
+  alertaBolsasMin: 3,
+  alertaBolsasDias: 7,
+  // Un insumo (materia prima) avisa cuando alcanza para menos de estos días.
+  alertaInsumosDias: 14,
   // 1 = cada venta de la caja descuenta del inventario los gramos de la receta; 0 = no (si empacas antes y registras el empaque).
   descontarInsumoAlVender: 1,
   // Regla de los sachets de $1.000: todos pesan 20 g, salvo que 20 g del insumo cuesten más del umbral;
@@ -68,6 +73,9 @@ export const SETTING_LABELS: Record<SettingKey, { label: string; kind: "pct" | "
   sachetGramos: { label: "Gramos de un sachet", kind: "num" },
   sachetCostoUmbral: { label: "Sachet: si 20 g del insumo cuestan más de este valor, se baja el gramaje", kind: "cop" },
   sachetCostoMaximo: { label: "Sachet: costo máximo del insumo cuando se baja el gramaje", kind: "cop" },
+  alertaBolsasMin: { label: "Alerta de producto: avisar cuando queden estas bolsas o menos", kind: "num" },
+  alertaBolsasDias: { label: "Alerta de producto: avisar cuando alcance para menos de estos días de venta", kind: "num" },
+  alertaInsumosDias: { label: "Alerta de insumo: avisar cuando alcance para menos de estos días de venta", kind: "num" },
   cierreDiferenciaMax: { label: "Diferencia de caja a partir de la cual el cierre pide revisar el conteo (en pesos)", kind: "cop" },
   devolucionMaxCajera: { label: "Devolución máxima que puede hacer la cajera sola (en pesos, ventas del mismo día)", kind: "cop" },
 };
