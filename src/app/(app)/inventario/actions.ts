@@ -3,7 +3,7 @@
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
-import { rawMaterials } from "@/db/schema";
+import { products, rawMaterials } from "@/db/schema";
 import { applyMovement } from "@/lib/inventory";
 import { requireAdmin } from "@/lib/session";
 import { todayISO } from "@/lib/format";
@@ -36,4 +36,16 @@ export async function recordCount(formData: FormData) {
     if (minKg !== null) await tx.update(rawMaterials).set({ minStockGrams: minKg * 1000 }).where(eq(rawMaterials.id, id));
   });
   revalidatePath("/inventario");
+}
+
+/** Conteo de bolsas listas para vender de un producto: deja el stock en lo contado (0 si ya no hay). */
+export async function setBagStock(formData: FormData) {
+  await requireAdmin();
+  const id = Number(formData.get("id"));
+  const units = kgField(formData, "units");
+  if (!id || units === null || units < 0) return;
+  await db.update(products).set({ stockUnits: units }).where(eq(products.id, id));
+  revalidatePath("/inventario");
+  revalidatePath("/vender");
+  revalidatePath("/");
 }

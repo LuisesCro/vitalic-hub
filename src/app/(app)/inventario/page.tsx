@@ -4,7 +4,9 @@ import { db } from "@/db";
 import { rawMaterials } from "@/db/schema";
 import { fmtCOP, fmtNum } from "@/lib/format";
 import { rawMaterialConsumption, trackedRawMaterialIds } from "@/lib/reports";
-import { recordCount } from "./actions";
+import { recordCount, setBagStock } from "./actions";
+import { products } from "@/db/schema";
+import { isNotNull, and } from "drizzle-orm";
 import { StockAlerts } from "@/components/stock-alerts";
 import { stockAlerts } from "@/lib/stock-alerts";
 
@@ -20,6 +22,7 @@ export default async function InventarioPage() {
     trackedRawMaterialIds(),
   ]);
   const alerts = await stockAlerts({ insumos: true });
+  const bags = await db.select({ id: products.id, name: products.name, stock: products.stockUnits }).from(products).where(and(eq(products.active, true), isNotNull(products.stockUnits))).orderBy(asc(products.stockUnits), asc(products.name));
   const rows = materials
     .map((m) => {
       const perDay = consumption.get(m.id) ?? 0;
@@ -46,6 +49,28 @@ export default async function InventarioPage() {
         El consumo sale de las bolsas vendidas en los últimos 90 días. Las compras confirmadas suman kilos y el empaque
         los descuenta. Para corregir la existencia, escribe lo que hay físicamente y guarda.
       </p>
+      <details className="card">
+        <summary className="cursor-pointer font-semibold">Bolsas listas para vender ({bags.length}) · corregir cuántas hay</summary>
+        <p className="mt-1 text-sm text-muted">Escribe cuántas bolsas hay en el mostrador. Si ya no hay, pon 0 y el producto sale como agotado.</p>
+        <table className="table-base mt-2">
+          <thead><tr><th>Producto</th><th className="text-right">Hay</th><th>Contar</th></tr></thead>
+          <tbody>
+            {bags.map((b) => (
+              <tr key={b.id}>
+                <td>{b.name}</td>
+                <td className="text-right">{fmtNum(b.stock ?? 0)}</td>
+                <td>
+                  <form action={setBagStock} className="flex gap-1">
+                    <input type="hidden" name="id" value={b.id} />
+                    <input name="units" inputMode="decimal" placeholder="Hay" className="input w-20" />
+                    <button className="btn-secondary">Guardar</button>
+                  </form>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </details>
       <div className="card overflow-x-auto">
         <table className="table-base">
           <thead>
