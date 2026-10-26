@@ -22,6 +22,8 @@ export const DEFAULT_SETTINGS = {
   // Lista de precios al por mayor: descuento sobre el precio por kilo de la bolsa más grande.
   descuentoMayorista2: 0.08,
   descuentoMayorista3: 0.12,
+  // Días de validez que se escriben en la lista de precios al por mayor.
+  cotizacionValidezDias: 15,
   // Descuento máximo que la cajera puede dar al cobrar (los administradores no tienen tope).
   descuentoMaxCajera: 0.05,
   // Valor máximo de una devolución que la cajera puede hacer sola, de ventas del mismo día (en pesos).
@@ -70,6 +72,7 @@ export const SETTING_LABELS: Record<SettingKey, { label: string; kind: "pct" | "
   margenGranel1: { label: "Margen por kilo, desde 1 kg", kind: "pct" },
   margenGranel2: { label: "Margen por kilo, segundo nivel", kind: "pct" },
   margenGranel3: { label: "Margen por kilo, bulto", kind: "pct" },
+  cotizacionValidezDias: { label: "Lista mayorista: días de validez de la cotización", kind: "num" },
   descuentoMayorista2: { label: "Lista mayorista: descuento desde la cantidad 2 (sobre el precio de bolsa)", kind: "pct" },
   descuentoMayorista3: { label: "Lista mayorista: descuento desde la cantidad 3 o bulto (sobre el precio de bolsa)", kind: "pct" },
   margenGranelPiso: { label: "Margen mínimo al negociar por kilo (precio más bajo que ve la caja)", kind: "pct" },

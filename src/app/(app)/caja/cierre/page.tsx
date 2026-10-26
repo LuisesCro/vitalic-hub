@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { cashMovements, cashSessions, posSales, users } from "@/db/schema";
 import { PAYMENT_METHODS, differenceStatus, expectedCash } from "@/lib/cash";
 import { POS_METHODS } from "@/lib/pos";
+import { BUSINESS } from "@/lib/business";
 import { salesOfDay } from "@/lib/day-sales";
 import { fmtCOP, fmtNum, todayISO } from "@/lib/format";
 import { requireSession } from "@/lib/session";
@@ -74,8 +75,8 @@ export default async function CierrePage({ searchParams }: { searchParams: Promi
       </div>
 
       <header className="text-center">
-        <p className="text-base font-bold">VITALIC S.A.S</p>
-        <p className="text-xs">NIT: 901967570-5</p>
+        <p className="text-base font-bold">{BUSINESS.name.toUpperCase()}</p>
+        <p className="text-xs">NIT: {BUSINESS.nit}</p>
         <p className="mt-1 text-sm font-bold">Cierre de caja · <span className="first-letter:uppercase">{fmtDay(date)}</span></p>
         {!cash ? (
           <p className="mt-1 text-xs">No se abrió caja este día; solo se muestran las ventas.</p>

@@ -72,29 +72,67 @@ export function toPublic(items: QuoteItem[], s: Settings, isAdmin: boolean): Pub
   });
 }
 
-export type WholesaleRow = { name: string; retailPerKg: number; fromKg2: number | null; fromKg3: number | null };
+export type WholesaleKgRow = { name: string; code: string; retailPerKg: number; fromKg2: number; fromKg3: number };
+export type WholesaleUnitRow = { name: string; code: string; unitPrice: number; from2: number; from3: number };
+export type WholesaleList = {
+  groups: { category: string; rows: WholesaleKgRow[] }[];
+  units: WholesaleUnitRow[];
+  /** Productos que con el descuento quedan por debajo del piso de margen, y los que quedan por debajo del costo. Solo para el administrador. */
+  belowFloor: string[];
+  belowCost: string[];
+};
 
 const roundUp100 = (v: number) => Math.ceil(v / 100) * 100;
 
 /**
- * Lista de precios al por mayor para entregar a un cliente: por kilo con IVA, sin costos.
- * Cada nivel es el precio por kilo de la bolsa más grande menos un descuento fijo (Ajustes). Si ese precio quedara
- * por debajo del piso de margen del producto, ese nivel se muestra sin descuento; sin descuento en ninguno, el producto queda fuera (`excluded`).
+ * Lista de precios al por mayor para entregar a un cliente, con TODOS los productos que se venden (sin sachets).
+ * Los de peso van por kilo con IVA (precio de la bolsa más grande menos el descuento de cada nivel); los que se venden por unidad
+ * (mieles, salsas, aceites…) van por unidad con los mismos descuentos desde las mismas cantidades. Nunca incluye costos.
  */
-export async function wholesaleList(s: Settings): Promise<{ rows: WholesaleRow[]; excluded: string[] }> {
-  const rows: WholesaleRow[] = [];
-  const excluded: string[] = [];
-  for (const i of toPublic(await quoteItems(), s, false)) {
-    if (!i.retailPerKg) continue; // sin precio de bolsa no hay a qué aplicarle el descuento
-    const retail = Math.round(i.retailPerKg);
-    const level = (disc: number) => {
-      const price = roundUp100(retail * (1 - disc));
-      return price >= i.floorPerKg && price < retail ? price : null;
-    };
-    const p2 = level(s.descuentoMayorista2), p3 = level(s.descuentoMayorista3);
-    if (p2 === null && p3 === null) { excluded.push(i.name); continue; }
-    rows.push({ name: i.name, retailPerKg: retail, fromKg2: p2, fromKg3: p3 });
+export async function wholesaleList(s: Settings): Promise<WholesaleList> {
+  const recipes = await loadComponents();
+  const fams = new Map((await db.select().from(productFamilies)).map((f) => [f.id, f]));
+  const items = (await db.select().from(products).where(eq(products.active, true))).filter((p) => p.priceNet > 0 && p.format !== "sachet");
+  const mats = new Map((await db.select({ id: rawMaterials.id, cost: rawMaterials.avgCostPerKg }).from(rawMaterials)).map((m) => [m.id, m.cost]));
+  const gross = (p: (typeof items)[number]) => p.priceNet * (1 + p.ivaRate);
+  const discounted = (price: number, d: number) => roundUp100(price * (1 - d));
+
+  const byKey = new Map<string, typeof items>();
+  for (const p of items) {
+    const key = p.familyId && p.format === "bolsa" ? `f${p.familyId}` : `p${p.id}`;
+    byKey.set(key, [...(byKey.get(key) ?? []), p]);
+  }
+
+  const cats = new Map<string, WholesaleKgRow[]>();
+  const units: WholesaleUnitRow[] = [];
+  const belowFloor: string[] = [], belowCost: string[] = [];
+  for (const group of byKey.values()) {
+    const bags = group.filter((p) => p.format === "bolsa" && (p.grams ?? 0) > 0);
+    if (bags.length) {
+      const big = bags.reduce((a, b) => ((b.grams ?? 0) > (a.grams ?? 0) ? b : a));
+      const name = (big.familyId && fams.get(big.familyId)?.name) || big.name;
+      const retail = Math.round((gross(big) * 1000) / big.grams!);
+      const p2 = discounted(retail, s.descuentoMayorista2), p3 = discounted(retail, s.descuentoMayorista3);
+      const comps = recipes.get(big.id) ?? [];
+      const costKg = comps.length && comps.every((c) => mats.get(c.rawMaterialId)) ? comps.reduce((t, c) => t + (c.grams / 1000) * mats.get(c.rawMaterialId)!, 0) / (comps.reduce((t, c) => t + c.grams, 0) / 1000) : null;
+      if (costKg) {
+        const net = (price: number) => price / (1 + big.ivaRate);
+        if (net(p3) < costKg) belowCost.push(name);
+        else if (net(p3) < costKg / (1 - s.margenGranelPiso)) belowFloor.push(name);
+      }
+      const cat = big.category?.trim() || "Otros productos";
+      cats.set(cat, [...(cats.get(cat) ?? []), { name, code: big.sku, retailPerKg: retail, fromKg2: p2, fromKg3: p3 }]);
+    } else {
+      for (const p of group) {
+        const price = Math.round(gross(p));
+        units.push({ name: p.name, code: p.sku, unitPrice: price, from2: discounted(price, s.descuentoMayorista2), from3: discounted(price, s.descuentoMayorista3) });
+      }
+    }
   }
   const by = (a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name, "es");
-  return { rows: rows.sort(by), excluded: excluded.sort() };
+  return {
+    groups: [...cats.entries()].sort(([a], [b]) => a.localeCompare(b, "es")).map(([category, rows]) => ({ category, rows: rows.sort(by) })),
+    units: units.sort(by),
+    belowFloor: belowFloor.sort(), belowCost: belowCost.sort(),
+  };
 }
