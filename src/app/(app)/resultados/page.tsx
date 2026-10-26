@@ -26,7 +26,7 @@ export default async function ResultadosPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-xl font-semibold">Resultados mes a mes</h1>
+      <div className="flex flex-wrap items-center justify-between gap-2"><h1 className="text-xl font-semibold">Resultados mes a mes</h1><a href="/resultados/informe" className="btn-secondary">Informe detallado del mes</a></div>
       <p className="text-sm text-muted">
         Ventas y costo de ventas desde Vendty (sin IVA). La utilidad neta solo es real en los meses con todos los gastos cargados.
       </p>
