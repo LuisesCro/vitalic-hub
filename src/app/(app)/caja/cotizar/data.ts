@@ -74,15 +74,22 @@ export function toPublic(items: QuoteItem[], s: Settings, isAdmin: boolean): Pub
 
 export type WholesaleRow = { name: string; retailPerKg: number | null; fromKg2: number; fromKg3: number; discount2: number | null; discount3: number | null };
 
-/** Lista de precios al por mayor para entregar a un cliente: por kilo con IVA, sin costos ni pisos. */
-export async function wholesaleList(s: Settings): Promise<WholesaleRow[]> {
-  return toPublic(await quoteItems(), s, false)
-    .map((i) => {
-      const p2 = i.tiers[1].pricePerKg, p3 = i.tiers[2].pricePerKg;
-      return {
-        name: i.name, retailPerKg: i.retailPerKg ? Math.round(i.retailPerKg) : null, fromKg2: p2, fromKg3: p3,
-        discount2: i.retailPerKg ? Math.max(0, 1 - p2 / i.retailPerKg) : null, discount3: i.retailPerKg ? Math.max(0, 1 - p3 / i.retailPerKg) : null,
-      };
-    })
-    .sort((a, b) => a.name.localeCompare(b.name, "es"));
+/**
+ * Lista de precios al por mayor para entregar a un cliente: por kilo con IVA, sin costos ni pisos.
+ * Un precio por cantidad nunca queda por encima del de bolsa: si el motor lo deja arriba (el precio de bolsa ya está en el piso de margen),
+ * ese nivel se muestra sin descuento, y el producto que no tiene descuento en ningún nivel queda fuera de la lista (`excluded`).
+ */
+export async function wholesaleList(s: Settings): Promise<{ rows: WholesaleRow[]; excluded: string[] }> {
+  const rows: WholesaleRow[] = [];
+  const excluded: string[] = [];
+  for (const i of toPublic(await quoteItems(), s, false)) {
+    const retail = i.retailPerKg ? Math.round(i.retailPerKg) : null;
+    const cap = (p: number) => (retail !== null && p >= retail ? retail : p);
+    const p2 = cap(i.tiers[1].pricePerKg), p3 = cap(i.tiers[2].pricePerKg);
+    const d = (p: number) => (retail !== null && p < retail ? 1 - p / retail : null);
+    if (retail !== null && p2 >= retail && p3 >= retail) { excluded.push(i.name); continue; }
+    rows.push({ name: i.name, retailPerKg: retail, fromKg2: p2, fromKg3: p3, discount2: d(p2), discount3: d(p3) });
+  }
+  const by = (a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name, "es");
+  return { rows: rows.sort(by), excluded: excluded.sort() };
 }

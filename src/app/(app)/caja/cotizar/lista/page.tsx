@@ -11,7 +11,7 @@ export default async function ListaMayoristaPage({ searchParams }: { searchParam
   await requireAdmin();
   const { cliente } = await searchParams;
   const s = await getSettings();
-  const rows = await wholesaleList(s);
+  const { rows, excluded } = await wholesaleList(s);
   const client = (cliente ?? "").trim().slice(0, 80);
   const date = new Date(todayISO() + "T12:00:00").toLocaleDateString("es-CO", { day: "numeric", month: "long", year: "numeric" });
 
@@ -60,6 +60,11 @@ export default async function ListaMayoristaPage({ searchParams }: { searchParam
           ))}
         </tbody>
       </table>
+      {excluded.length > 0 && (
+        <p className="mt-4 rounded-lg border border-[var(--border)] p-3 text-xs print:hidden">
+          <strong>No salen en la lista ({excluded.length}):</strong> su precio en bolsa ya está en el piso de margen y no se puede dar descuento por cantidad sin bajar del {fmtPct(s.margenGranelPiso)} de margen. {excluded.join(", ")}.
+        </p>
+      )}
       <p className="mt-3 text-[11px]">
         Precios por kilo con IVA incluido. El descuento es frente al precio por kilo de la bolsa más grande. El precio por cantidad aplica al comprar {s.granelDesdeKg2} kg o más
         de un mismo producto y el de bulto desde {s.granelDesdeKg3} kg. Los precios pueden cambiar sin previo aviso; consulta disponibilidad antes de confirmar el pedido.

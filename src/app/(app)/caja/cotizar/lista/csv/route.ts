@@ -11,7 +11,7 @@ export async function GET() {
   const session = await readSession();
   if (!session || session.role !== "admin") return new Response("No autorizado", { status: 401 });
   const s = await getSettings();
-  const rows = await wholesaleList(s);
+  const { rows } = await wholesaleList(s);
   const pct = (v: number | null) => (v ? `${Math.round(v * 1000) / 10}%` : "");
   const lines = [
     ["Producto", "Precio en bolsa por kilo (con IVA)", `Desde ${s.granelDesdeKg2} kg por kilo`, "Descuento", `Desde ${s.granelDesdeKg3} kg por kilo`, "Descuento"].map(q).join(";"),
