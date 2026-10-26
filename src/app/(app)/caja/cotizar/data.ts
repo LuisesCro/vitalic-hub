@@ -71,3 +71,18 @@ export function toPublic(items: QuoteItem[], s: Settings, isAdmin: boolean): Pub
     }];
   });
 }
+
+export type WholesaleRow = { name: string; retailPerKg: number | null; fromKg2: number; fromKg3: number; discount2: number | null; discount3: number | null };
+
+/** Lista de precios al por mayor para entregar a un cliente: por kilo con IVA, sin costos ni pisos. */
+export async function wholesaleList(s: Settings): Promise<WholesaleRow[]> {
+  return toPublic(await quoteItems(), s, false)
+    .map((i) => {
+      const p2 = i.tiers[1].pricePerKg, p3 = i.tiers[2].pricePerKg;
+      return {
+        name: i.name, retailPerKg: i.retailPerKg ? Math.round(i.retailPerKg) : null, fromKg2: p2, fromKg3: p3,
+        discount2: i.retailPerKg ? Math.max(0, 1 - p2 / i.retailPerKg) : null, discount3: i.retailPerKg ? Math.max(0, 1 - p3 / i.retailPerKg) : null,
+      };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name, "es"));
+}

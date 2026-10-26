@@ -26,6 +26,7 @@ export default async function CotizarPage() {
   return (
     <div className="space-y-4">
       <PageHeader title="Cotizar por kilo o bulto" subtitle="Para cuando un cliente pregunta cuánto le deja 3 kg de linaza o un bulto de chía.">
+        {session.role === "admin" && <Link href="/caja/cotizar/lista" className="btn-primary">Lista de precios al por mayor</Link>}
         <Link href="/caja" className="btn-secondary">← Caja</Link>
       </PageHeader>
       <QuoteTool items={toPublic(items, settings, session.role === "admin")} settings={settings} isAdmin={session.role === "admin"} />
