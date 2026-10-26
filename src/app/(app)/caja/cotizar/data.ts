@@ -86,6 +86,7 @@ export type WholesaleList = {
 // Solo los códigos de Vitalic se muestran al cliente; los internos de proveedores quedan en blanco.
 const publicCode = (sku: string) => (/^VTL-/i.test(sku) ? sku : "");
 // Redondeo hacia arriba: a $100 en precios normales y a $10 en precios menores a $2.000, para que el descuento nunca deje el precio más alto que el original.
+const PIECE = /astilla|pepitas?|turr[oó]n/i;
 const roundUp100 = (v: number) => (v < 2000 ? Math.ceil(v / 10) * 10 : Math.ceil(v / 100) * 100);
 
 /**
@@ -97,7 +98,7 @@ export async function wholesaleList(s: Settings): Promise<WholesaleList> {
   const recipes = await loadComponents();
   const fams = new Map((await db.select().from(productFamilies)).map((f) => [f.id, f]));
   // Fuera de la lista mayorista por decisión del dueño: aceite de oliva, aceitunas, brevas, Nachili, alcaparras, cerezas 3A, duraznos, piña, stevia, kanawi y sacha inchi.
-  const NOT_WHOLESALE = /aceite de oliva|aceituna|breva|nachili|alcaparra|cerezas?.*3a|duraznos? en mitades|pi[ñn]a (en )?rodajas|stevia|kanawi|sacha\s*inchi/i;
+  const NOT_WHOLESALE = /aceite de oliva|aceituna|breva|n?a?chili|alcaparra|cerezas?.*3a|duraznos? en mitades|pi[ñn]a (en )?rodajas|stevia|kanawi|sacha\s*inchi/i;
   const items = (await db.select().from(products).where(eq(products.active, true))).filter((p) => p.priceNet > 0 && p.format !== "sachet" && !NOT_WHOLESALE.test(p.name));
   const mats = new Map((await db.select({ id: rawMaterials.id, cost: rawMaterials.avgCostPerKg }).from(rawMaterials)).map((m) => [m.id, m.cost]));
   const gross = (p: (typeof items)[number]) => p.priceNet * (1 + p.ivaRate);
@@ -113,7 +114,8 @@ export async function wholesaleList(s: Settings): Promise<WholesaleList> {
   const units: WholesaleUnitRow[] = [];
   const belowFloor: string[] = [], belowCost: string[] = [];
   for (const group of byKey.values()) {
-    const bags = group.filter((p) => p.format === "bolsa" && (p.grams ?? 0) > 0);
+    // Lo que se vende por pieza (una astilla, dos pepitas, un turrón) va por unidad aunque su ficha tenga gramos.
+    const bags = group.filter((p) => p.format === "bolsa" && (p.grams ?? 0) > 0 && !PIECE.test(p.name));
     if (bags.length) {
       const big = bags.reduce((a, b) => ((b.grams ?? 0) > (a.grams ?? 0) ? b : a));
       const name = (big.familyId && fams.get(big.familyId)?.name) || big.name;
