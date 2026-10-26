@@ -115,7 +115,7 @@ export async function wholesaleList(s: Settings): Promise<WholesaleList> {
   const belowFloor: string[] = [], belowCost: string[] = [];
   for (const group of byKey.values()) {
     // Lo que se vende por pieza (una astilla, dos pepitas, un turrón) va por unidad aunque su ficha tenga gramos.
-    const bags = group.filter((p) => p.format === "bolsa" && (p.grams ?? 0) > 0 && !PIECE.test(p.name));
+    const bags = group.filter((p) => p.format === "bolsa" && (p.grams ?? 0) > 0 && !PIECE.test(p.name) && !PIECE.test((p.familyId && fams.get(p.familyId)?.name) || ""));
     if (bags.length) {
       const big = bags.reduce((a, b) => ((b.grams ?? 0) > (a.grams ?? 0) ? b : a));
       const name = (big.familyId && fams.get(big.familyId)?.name) || big.name;
