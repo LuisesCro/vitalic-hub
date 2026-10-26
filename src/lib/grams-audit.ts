@@ -18,11 +18,8 @@ const differs = (a: number, b: number) => Math.abs(a - b) > Math.max(1, b * 0.02
  * Cuando dos de esas fuentes coinciden entre sí y no con lo guardado, sugiere ese valor.
  */
 export function auditGrams(p: { id: number; name: string; sku: string; format: string; grams: number | null; recipeGrams: number | null }): GramsIssue | null {
-  if (p.format === "sachet") {
-    return p.recipeGrams !== null && p.grams !== null && differs(p.recipeGrams, p.grams)
-      ? { id: p.id, name: p.name, sku: p.sku, grams: p.grams, reasons: [`la receta suma ${p.recipeGrams} g`], suggested: null }
-      : null;
-  }
+  // Los sachets no se revisan: su gramaje lo fija la regla de costo, no el nombre ni el código.
+  if (p.format === "sachet") return null;
   const nameG = gramsFromName(p.name);
   const skuG = gramsFromSku(p.sku);
   const reasons: string[] = [];

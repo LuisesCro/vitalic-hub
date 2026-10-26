@@ -32,8 +32,8 @@ describe("revisión de gramos", () => {
     expect(auditGrams({ ...base, name: "Color 10g – Paquete de 10 und", sku: "VTL-ACE-COLOR-10G-P10", grams: 100, recipeGrams: 100 })).toBeNull();
     expect(auditGrams({ ...base, name: "Paprika 10g – Paquete de 10 und", sku: "VTL-ACE-PAPRIK-10G-P10", grams: 150, recipeGrams: 150 })?.suggested).toBe(100);
   });
-  it("los sachets solo se comparan con su receta", () => {
+  it("los sachets no se revisan", () => {
     expect(auditGrams({ ...base, format: "sachet", name: "Ají sachet", sku: "VTL-X-SACHET", grams: 20, recipeGrams: 20 })).toBeNull();
-    expect(auditGrams({ ...base, format: "sachet", name: "Ají sachet", sku: "VTL-X-SACHET", grams: 20, recipeGrams: 5 })?.reasons[0]).toContain("5");
+    expect(auditGrams({ ...base, format: "sachet", name: "Ají sachet", sku: "VTL-X-SACHET", grams: 20, recipeGrams: 5 })).toBeNull();
   });
 });
