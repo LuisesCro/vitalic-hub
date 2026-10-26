@@ -120,8 +120,11 @@ export default async function ListaMayoristaPage() {
         <footer className="mt-4 break-inside-avoid px-6 pb-5 text-[11px]">
           <div className="h-1" style={{ background: "var(--color-leaf-500)", ...keep }} />
           <p className="mt-2 text-neutral-700">
-            El precio por cantidad aplica a un mismo producto. Forma de pago, entrega y disponibilidad: se confirman con el pedido. Los precios corresponden a la fecha indicada y pueden cambiar después.
+            El precio por cantidad aplica a un mismo producto. Forma de pago, entrega y disponibilidad: se confirman con el pedido.
             {` ${total} productos.`}
+          </p>
+          <p className="mt-2 font-semibold" style={{ color: "var(--color-brand-800)" }}>
+            Nota: los precios de venta de los productos pueden variar ligeramente de un mes a otro, dependiendo de las condiciones del mercado.
           </p>
           <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-md px-3 py-2 text-white" style={{ background: "var(--color-brand-600)", ...keep }}>
             <span className="font-bold">Vitalic · NIT {BUSINESS.nit}</span>
