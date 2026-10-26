@@ -98,7 +98,7 @@ export async function wholesaleList(s: Settings): Promise<WholesaleList> {
   const recipes = await loadComponents();
   const fams = new Map((await db.select().from(productFamilies)).map((f) => [f.id, f]));
   // Fuera de la lista mayorista por decisión del dueño: aceite de oliva, aceitunas, brevas, Nachili, alcaparras, cerezas 3A, duraznos, piña, stevia, kanawi y sacha inchi.
-  const NOT_WHOLESALE = /aceite de oliva|aceituna|breva|\bn(a)?chili|alcaparra|cerezas?.*3a|duraznos? en mitades|pi[ñn]a (en )?rodajas|stevia|kanawi|sacha\s*inchi/i;
+  const NOT_WHOLESALE = /aceite de oliva|aceituna|breva|\bn(a)?chili|alcaparra|cerezas?.*3a|duraznos? en mitades|pi[ñn]a (en )?rodajas|stevia|kanawi|sacha\s*inchi|pistacho sin cascara 250/i;
   const items = (await db.select().from(products).where(eq(products.active, true))).filter((p) => p.priceNet > 0 && p.format !== "sachet" && !NOT_WHOLESALE.test(p.name));
   const mats = new Map((await db.select({ id: rawMaterials.id, cost: rawMaterials.avgCostPerKg }).from(rawMaterials)).map((m) => [m.id, m.cost]));
   const gross = (p: (typeof items)[number]) => p.priceNet * (1 + p.ivaRate);
@@ -119,6 +119,8 @@ export async function wholesaleList(s: Settings): Promise<WholesaleList> {
     if (bags.length) {
       const big = bags.reduce((a, b) => ((b.grams ?? 0) > (a.grams ?? 0) ? b : a));
       const name = (big.familyId && fams.get(big.familyId)?.name) || big.name;
+      // La canela entera va una sola vez, por peso ($120 el gramo): se omite la bolsa para que no salga repetida.
+      if (/^canela entera$/i.test(name.trim())) continue;
       const retail = Math.round((gross(big) * 1000) / big.grams!);
       const p2 = discounted(retail, s.descuentoMayorista2), p3 = discounted(retail, s.descuentoMayorista3);
       const comps = recipes.get(big.id) ?? [];
@@ -137,7 +139,7 @@ export async function wholesaleList(s: Settings): Promise<WholesaleList> {
           // Se vende por gramo: en la lista va por kilo, como los demás productos de peso.
           const retail = Math.round(gross(p) * 1000);
           const cat = p.category?.trim() && !/^general$/i.test(p.category.trim()) ? p.category.trim() : "Otros productos";
-          cats.set(cat, [...(cats.get(cat) ?? []), { name: p.name, code: publicCode(p.sku), retailPerKg: retail, fromKg2: discounted(retail, s.descuentoMayorista2), fromKg3: discounted(retail, s.descuentoMayorista3) }]);
+          cats.set(cat, [...(cats.get(cat) ?? []), { name: /^canela entera x peso$/i.test(p.name.trim()) ? "Canela entera" : p.name, code: publicCode(p.sku), retailPerKg: retail, fromKg2: discounted(retail, s.descuentoMayorista2), fromKg3: discounted(retail, s.descuentoMayorista3) }]);
           continue;
         }
         const price = Math.round(gross(p));
