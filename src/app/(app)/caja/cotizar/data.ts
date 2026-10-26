@@ -85,7 +85,8 @@ export type WholesaleList = {
 
 // Solo los códigos de Vitalic se muestran al cliente; los internos de proveedores quedan en blanco.
 const publicCode = (sku: string) => (/^VTL-/i.test(sku) ? sku : "");
-const roundUp100 = (v: number) => Math.ceil(v / 100) * 100;
+// Redondeo hacia arriba: a $100 en precios normales y a $10 en precios menores a $2.000, para que el descuento nunca deje el precio más alto que el original.
+const roundUp100 = (v: number) => (v < 2000 ? Math.ceil(v / 10) * 10 : Math.ceil(v / 100) * 100);
 
 /**
  * Lista de precios al por mayor para entregar a un cliente, con TODOS los productos que se venden (sin sachets).
@@ -130,7 +131,7 @@ export async function wholesaleList(s: Settings): Promise<WholesaleList> {
       cats.set(cat, [...(cats.get(cat) ?? []), { name, code: publicCode(big.sku), retailPerKg: retail, fromKg2: p2, fromKg3: p3 }]);
     } else {
       for (const p of group) {
-        if (soldByWeight(p.name)) {
+        if (soldByWeight(p.name) || /por peso/i.test(p.name)) {
           // Se vende por gramo: en la lista va por kilo, como los demás productos de peso.
           const retail = Math.round(gross(p) * 1000);
           const cat = p.category?.trim() && !/^general$/i.test(p.category.trim()) ? p.category.trim() : "Otros productos";
