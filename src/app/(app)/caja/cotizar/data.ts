@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { productFamilies, products, rawMaterials } from "@/db/schema";
 import { loadComponents, type Component } from "@/lib/components";
 import { quoteBulk } from "@/lib/bulk";
+import { soldByWeight } from "@/lib/pos";
 import type { Settings } from "@/lib/settings-defaults";
 
 export type QuoteItem = {
@@ -129,6 +130,13 @@ export async function wholesaleList(s: Settings): Promise<WholesaleList> {
       cats.set(cat, [...(cats.get(cat) ?? []), { name, code: publicCode(big.sku), retailPerKg: retail, fromKg2: p2, fromKg3: p3 }]);
     } else {
       for (const p of group) {
+        if (soldByWeight(p.name)) {
+          // Se vende por gramo: en la lista va por kilo, como los demás productos de peso.
+          const retail = Math.round(gross(p) * 1000);
+          const cat = p.category?.trim() && !/^general$/i.test(p.category.trim()) ? p.category.trim() : "Otros productos";
+          cats.set(cat, [...(cats.get(cat) ?? []), { name: p.name, code: publicCode(p.sku), retailPerKg: retail, fromKg2: discounted(retail, s.descuentoMayorista2), fromKg3: discounted(retail, s.descuentoMayorista3) }]);
+          continue;
+        }
         const price = Math.round(gross(p));
         units.push({ name: p.name, code: publicCode(p.sku), unitPrice: price, from2: discounted(price, s.descuentoMayorista2), from3: discounted(price, s.descuentoMayorista3) });
       }
