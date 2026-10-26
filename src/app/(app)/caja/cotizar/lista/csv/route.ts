@@ -14,9 +14,9 @@ export async function GET() {
   const { groups, units } = await wholesaleList(s);
   const d2 = Math.round(s.descuentoMayorista2 * 100), d3 = Math.round(s.descuentoMayorista3 * 100);
   const lines = [
-    ["Categoría", "Producto", "Código", "Unidad", "Precio por unidad de venta (con IVA)", `Desde ${s.granelDesdeKg2} (-${d2}%)`, `Desde ${s.granelDesdeKg3} (-${d3}%)`].map(q).join(";"),
-    ...groups.flatMap((g) => g.rows.map((r) => [q(g.category), q(r.name), q(r.code), q("kilo"), r.retailPerKg, r.fromKg2, r.fromKg3].join(";"))),
-    ...units.map((r) => [q("Productos por unidad"), q(r.name), q(r.code), q("unidad"), r.unitPrice, r.from2, r.from3].join(";")),
+    ["Categoría", "Producto", "Unidad", "Precio por unidad de venta (con IVA)", `Desde ${s.granelDesdeKg2} (-${d2}%)`, `Desde ${s.granelDesdeKg3} (-${d3}%)`].map(q).join(";"),
+    ...groups.flatMap((g) => g.rows.map((r) => [q(g.category), q(r.name), q("kilo"), r.retailPerKg, r.fromKg2, r.fromKg3].join(";"))),
+    ...units.map((r) => [q("Productos por unidad"), q(r.name), q("unidad"), r.unitPrice, r.from2, r.from3].join(";")),
   ];
   return new Response("﻿" + lines.join("\r\n"), {
     headers: { "content-type": "text/csv; charset=utf-8", "content-disposition": 'attachment; filename="lista-precios-mayorista-vitalic.csv"' },

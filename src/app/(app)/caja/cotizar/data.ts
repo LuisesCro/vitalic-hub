@@ -94,7 +94,9 @@ const roundUp100 = (v: number) => Math.ceil(v / 100) * 100;
 export async function wholesaleList(s: Settings): Promise<WholesaleList> {
   const recipes = await loadComponents();
   const fams = new Map((await db.select().from(productFamilies)).map((f) => [f.id, f]));
-  const items = (await db.select().from(products).where(eq(products.active, true))).filter((p) => p.priceNet > 0 && p.format !== "sachet");
+  // Fuera de la lista mayorista por decisión del dueño: aceite de oliva, aceitunas y brevas.
+  const NOT_WHOLESALE = /aceite de oliva|aceituna|breva/i;
+  const items = (await db.select().from(products).where(eq(products.active, true))).filter((p) => p.priceNet > 0 && p.format !== "sachet" && !NOT_WHOLESALE.test(p.name));
   const mats = new Map((await db.select({ id: rawMaterials.id, cost: rawMaterials.avgCostPerKg }).from(rawMaterials)).map((m) => [m.id, m.cost]));
   const gross = (p: (typeof items)[number]) => p.priceNet * (1 + p.ivaRate);
   const discounted = (price: number, d: number) => roundUp100(price * (1 - d));
