@@ -167,6 +167,7 @@ export async function saveDraft(formData: FormData) {
 export async function confirmPurchase(formData: FormData) {
   const session = await requireAdmin();
   const purchaseId = Number(formData.get("purchaseId"));
+  const alreadyCounted = formData.get("alreadyCounted") === "on";
   await saveEdits(purchaseId, formData);
 
   // No se confirma una factura con productos del inventario a los que les falta el peso.
@@ -191,6 +192,13 @@ export async function confirmPurchase(formData: FormData) {
         note: `Factura ${purchase.invoiceNumber ?? purchase.id}`,
         userId: session.userId,
       });
+      if (alreadyCounted) {
+        // Factura anterior al conteo físico: esos kilos ya están en el conteo. Se deja la existencia como estaba y solo queda el costo.
+        await applyMovement(tx, {
+          rawMaterialId: line.rawMaterialId, occurredOn: todayISO(), kind: "ajuste", grams: -kg * 1000,
+          note: `Ya contado en el inventario físico (factura ${purchase.invoiceNumber ?? purchase.id})`, userId: session.userId,
+        });
+      }
       if (purchase.supplierId) {
         await tx
           .insert(supplierItemMap)

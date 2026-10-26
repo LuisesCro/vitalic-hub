@@ -167,10 +167,15 @@ export default async function CompraPage({ params, searchParams }: { params: Pro
           })}
         </div>
         {!locked ? (
+          <div className="space-y-2">
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" name="alreadyCounted" /> Factura anterior al conteo físico: esos kilos ya están contados (solo actualizar costos y cuentas por pagar)
+            </label>
           <div className="flex flex-wrap gap-2">
             <button formAction={confirmPurchase} className="btn-primary">Confirmar y sumar al inventario</button>
             <button formAction={saveDraft} className="btn-secondary">Guardar sin confirmar</button>
             <button formAction={deleteDraft} className="btn-secondary text-red-600">Descartar</button>
+          </div>
           </div>
         ) : (
           <div className="space-y-3">
