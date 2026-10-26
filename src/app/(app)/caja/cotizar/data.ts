@@ -98,7 +98,7 @@ export async function wholesaleList(s: Settings): Promise<WholesaleList> {
   const recipes = await loadComponents();
   const fams = new Map((await db.select().from(productFamilies)).map((f) => [f.id, f]));
   // Fuera de la lista mayorista por decisión del dueño: aceite de oliva, aceitunas, brevas, Nachili, alcaparras, cerezas 3A, duraznos, piña, stevia, kanawi y sacha inchi.
-  const NOT_WHOLESALE = /aceite de oliva|aceituna|breva|n?a?chili|alcaparra|cerezas?.*3a|duraznos? en mitades|pi[ñn]a (en )?rodajas|stevia|kanawi|sacha\s*inchi/i;
+  const NOT_WHOLESALE = /aceite de oliva|aceituna|breva|\bn(a)?chili|alcaparra|cerezas?.*3a|duraznos? en mitades|pi[ñn]a (en )?rodajas|stevia|kanawi|sacha\s*inchi/i;
   const items = (await db.select().from(products).where(eq(products.active, true))).filter((p) => p.priceNet > 0 && p.format !== "sachet" && !NOT_WHOLESALE.test(p.name));
   const mats = new Map((await db.select({ id: rawMaterials.id, cost: rawMaterials.avgCostPerKg }).from(rawMaterials)).map((m) => [m.id, m.cost]));
   const gross = (p: (typeof items)[number]) => p.priceNet * (1 + p.ivaRate);
