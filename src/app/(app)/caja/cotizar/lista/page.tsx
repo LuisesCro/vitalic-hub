@@ -40,33 +40,29 @@ export default async function ListaMayoristaPage({ searchParams }: { searchParam
         <thead>
           <tr className="border-b border-black/40 text-left">
             <th className="py-1">Producto</th>
-            <th className="text-right">Precio en bolsa<br />por kilo</th>
-            <th className="text-right">Desde {s.granelDesdeKg2} kg<br />por kilo</th>
-            <th className="text-right">Dcto.</th>
-            <th className="text-right">Desde {s.granelDesdeKg3} kg<br />por kilo</th>
-            <th className="text-right">Dcto.</th>
+            <th className="text-right">Precio por kilo<br />en bolsa</th>
+            <th className="text-right">Desde {s.granelDesdeKg2} kg<br />por kilo (-{Math.round(s.descuentoMayorista2 * 100)} %)</th>
+            <th className="text-right">Desde {s.granelDesdeKg3} kg<br />por kilo (-{Math.round(s.descuentoMayorista3 * 100)} %)</th>
           </tr>
         </thead>
         <tbody>
           {rows.map((r) => (
             <tr key={r.name} className="break-inside-avoid border-b border-black/10">
               <td className="py-0.5 pr-2">{r.name}</td>
-              <td className="text-right tabular-nums">{r.retailPerKg ? fmtCOP(r.retailPerKg) : "—"}</td>
-              <td className="text-right font-semibold tabular-nums">{fmtCOP(r.fromKg2)}</td>
-              <td className="text-right tabular-nums">{r.discount2 ? fmtPct(r.discount2) : "—"}</td>
-              <td className="text-right font-semibold tabular-nums">{fmtCOP(r.fromKg3)}</td>
-              <td className="text-right tabular-nums">{r.discount3 ? fmtPct(r.discount3) : "—"}</td>
+              <td className="text-right tabular-nums">{fmtCOP(r.retailPerKg)}</td>
+              <td className="text-right font-semibold tabular-nums">{r.fromKg2 ? fmtCOP(r.fromKg2) : "—"}</td>
+              <td className="text-right font-semibold tabular-nums">{r.fromKg3 ? fmtCOP(r.fromKg3) : "—"}</td>
             </tr>
           ))}
         </tbody>
       </table>
       {excluded.length > 0 && (
         <p className="mt-4 rounded-lg border border-[var(--border)] p-3 text-xs print:hidden">
-          <strong>No salen en la lista ({excluded.length}):</strong> su precio en bolsa ya está en el piso de margen y no se puede dar descuento por cantidad sin bajar del {fmtPct(s.margenGranelPiso)} de margen. {excluded.join(", ")}.
+          <strong>No salen en la lista ({excluded.length}):</strong> con el descuento fijo quedarían por debajo del piso de margen de {fmtPct(s.margenGranelPiso)}. {excluded.join(", ")}.
         </p>
       )}
       <p className="mt-3 text-[11px]">
-        Precios por kilo con IVA incluido. El descuento es frente al precio por kilo de la bolsa más grande. El precio por cantidad aplica al comprar {s.granelDesdeKg2} kg o más
+        Precios por kilo con IVA incluido. El descuento es frente al precio por kilo de la bolsa más grande. Una raya (—) significa que ese nivel no tiene descuento. El precio por cantidad aplica al comprar {s.granelDesdeKg2} kg o más
         de un mismo producto y el de bulto desde {s.granelDesdeKg3} kg. Los precios pueden cambiar sin previo aviso; consulta disponibilidad antes de confirmar el pedido.
       </p>
     </div>

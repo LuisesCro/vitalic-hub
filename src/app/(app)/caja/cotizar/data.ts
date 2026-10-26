@@ -72,23 +72,28 @@ export function toPublic(items: QuoteItem[], s: Settings, isAdmin: boolean): Pub
   });
 }
 
-export type WholesaleRow = { name: string; retailPerKg: number | null; fromKg2: number; fromKg3: number; discount2: number | null; discount3: number | null };
+export type WholesaleRow = { name: string; retailPerKg: number; fromKg2: number | null; fromKg3: number | null };
+
+const roundUp100 = (v: number) => Math.ceil(v / 100) * 100;
 
 /**
- * Lista de precios al por mayor para entregar a un cliente: por kilo con IVA, sin costos ni pisos.
- * Un precio por cantidad nunca queda por encima del de bolsa: si el motor lo deja arriba (el precio de bolsa ya está en el piso de margen),
- * ese nivel se muestra sin descuento, y el producto que no tiene descuento en ningún nivel queda fuera de la lista (`excluded`).
+ * Lista de precios al por mayor para entregar a un cliente: por kilo con IVA, sin costos.
+ * Cada nivel es el precio por kilo de la bolsa más grande menos un descuento fijo (Ajustes). Si ese precio quedara
+ * por debajo del piso de margen del producto, ese nivel se muestra sin descuento; sin descuento en ninguno, el producto queda fuera (`excluded`).
  */
 export async function wholesaleList(s: Settings): Promise<{ rows: WholesaleRow[]; excluded: string[] }> {
   const rows: WholesaleRow[] = [];
   const excluded: string[] = [];
   for (const i of toPublic(await quoteItems(), s, false)) {
-    const retail = i.retailPerKg ? Math.round(i.retailPerKg) : null;
-    const cap = (p: number) => (retail !== null && p >= retail ? retail : p);
-    const p2 = cap(i.tiers[1].pricePerKg), p3 = cap(i.tiers[2].pricePerKg);
-    const d = (p: number) => (retail !== null && p < retail ? 1 - p / retail : null);
-    if (retail !== null && p2 >= retail && p3 >= retail) { excluded.push(i.name); continue; }
-    rows.push({ name: i.name, retailPerKg: retail, fromKg2: p2, fromKg3: p3, discount2: d(p2), discount3: d(p3) });
+    if (!i.retailPerKg) continue; // sin precio de bolsa no hay a qué aplicarle el descuento
+    const retail = Math.round(i.retailPerKg);
+    const level = (disc: number) => {
+      const price = roundUp100(retail * (1 - disc));
+      return price >= i.floorPerKg && price < retail ? price : null;
+    };
+    const p2 = level(s.descuentoMayorista2), p3 = level(s.descuentoMayorista3);
+    if (p2 === null && p3 === null) { excluded.push(i.name); continue; }
+    rows.push({ name: i.name, retailPerKg: retail, fromKg2: p2, fromKg3: p3 });
   }
   const by = (a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name, "es");
   return { rows: rows.sort(by), excluded: excluded.sort() };
