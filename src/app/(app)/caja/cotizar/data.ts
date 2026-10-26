@@ -82,6 +82,8 @@ export type WholesaleList = {
   belowCost: string[];
 };
 
+// Solo los códigos de Vitalic se muestran al cliente; los internos de proveedores quedan en blanco.
+const publicCode = (sku: string) => (/^VTL-/i.test(sku) ? sku : "");
 const roundUp100 = (v: number) => Math.ceil(v / 100) * 100;
 
 /**
@@ -120,12 +122,13 @@ export async function wholesaleList(s: Settings): Promise<WholesaleList> {
         if (net(p3) < costKg) belowCost.push(name);
         else if (net(p3) < costKg / (1 - s.margenGranelPiso)) belowFloor.push(name);
       }
-      const cat = big.category?.trim() || "Otros productos";
-      cats.set(cat, [...(cats.get(cat) ?? []), { name, code: big.sku, retailPerKg: retail, fromKg2: p2, fromKg3: p3 }]);
+      const rawCat = big.category?.trim();
+      const cat = !rawCat || /^general$/i.test(rawCat) ? "Otros productos" : rawCat;
+      cats.set(cat, [...(cats.get(cat) ?? []), { name, code: publicCode(big.sku), retailPerKg: retail, fromKg2: p2, fromKg3: p3 }]);
     } else {
       for (const p of group) {
         const price = Math.round(gross(p));
-        units.push({ name: p.name, code: p.sku, unitPrice: price, from2: discounted(price, s.descuentoMayorista2), from3: discounted(price, s.descuentoMayorista3) });
+        units.push({ name: p.name, code: publicCode(p.sku), unitPrice: price, from2: discounted(price, s.descuentoMayorista2), from3: discounted(price, s.descuentoMayorista3) });
       }
     }
   }

@@ -75,7 +75,7 @@ export default async function ListaMayoristaPage({ searchParams }: { searchParam
           {groups.map((g) => (
             <section key={g.category} className="mt-4">
               <h2 className="break-after-avoid rounded-md px-3 py-1 text-sm font-bold text-white" style={{ background: "var(--color-brand-600)", ...keep }}>{g.category}</h2>
-              <table className="w-full text-xs">
+              <table className="w-full table-fixed text-xs"><colgroup><col style={{ width: "34%" }} /><col style={{ width: "24%" }} /><col style={{ width: "14%" }} /><col style={{ width: "14%" }} /><col style={{ width: "14%" }} /></colgroup>
                 <thead>
                   <tr className="text-left" style={{ color: "var(--color-brand-800)" }}>
                     <th className="py-1 pl-1">Producto</th><th>Código</th>
@@ -86,9 +86,9 @@ export default async function ListaMayoristaPage({ searchParams }: { searchParam
                 </thead>
                 <tbody>
                   {g.rows.map((r, i) => (
-                    <tr key={r.code + r.name} className="break-inside-avoid" style={{ background: i % 2 ? "var(--color-brand-50)" : "transparent", ...keep }}>
+                    <tr key={r.name} className="break-inside-avoid" style={{ background: i % 2 ? "var(--color-brand-50)" : "transparent", ...keep }}>
                       <td className="py-0.5 pl-1 pr-2 font-medium">{r.name}</td>
-                      <td className="pr-2 text-[10px] text-neutral-500">{r.code}</td>
+                      <td className="pr-2 text-[10px] text-neutral-500">{r.code || ""}</td>
                       <td className="text-right tabular-nums">{fmtCOP(r.retailPerKg)}</td>
                       <td className="text-right font-semibold tabular-nums">{fmtCOP(r.fromKg2)}</td>
                       <td className="pr-1 text-right font-bold tabular-nums" style={{ color: "var(--color-brand-700)" }}>{fmtCOP(r.fromKg3)}</td>
@@ -102,7 +102,7 @@ export default async function ListaMayoristaPage({ searchParams }: { searchParam
           {units.length > 0 && (
             <section className="mt-4">
               <h2 className="break-after-avoid rounded-md px-3 py-1 text-sm font-bold text-white" style={{ background: "var(--color-brand-600)", ...keep }}>Productos por unidad</h2>
-              <table className="w-full text-xs">
+              <table className="w-full table-fixed text-xs"><colgroup><col style={{ width: "34%" }} /><col style={{ width: "24%" }} /><col style={{ width: "14%" }} /><col style={{ width: "14%" }} /><col style={{ width: "14%" }} /></colgroup>
                 <thead>
                   <tr className="text-left" style={{ color: "var(--color-brand-800)" }}>
                     <th className="py-1 pl-1">Producto</th><th>Código</th>
@@ -113,9 +113,9 @@ export default async function ListaMayoristaPage({ searchParams }: { searchParam
                 </thead>
                 <tbody>
                   {units.map((r, i) => (
-                    <tr key={r.code + r.name} className="break-inside-avoid" style={{ background: i % 2 ? "var(--color-brand-50)" : "transparent", ...keep }}>
+                    <tr key={r.name} className="break-inside-avoid" style={{ background: i % 2 ? "var(--color-brand-50)" : "transparent", ...keep }}>
                       <td className="py-0.5 pl-1 pr-2 font-medium">{r.name}</td>
-                      <td className="pr-2 text-[10px] text-neutral-500">{r.code}</td>
+                      <td className="pr-2 text-[10px] text-neutral-500">{r.code || ""}</td>
                       <td className="text-right tabular-nums">{fmtCOP(r.unitPrice)}</td>
                       <td className="text-right font-semibold tabular-nums">{fmtCOP(r.from2)}</td>
                       <td className="pr-1 text-right font-bold tabular-nums" style={{ color: "var(--color-brand-700)" }}>{fmtCOP(r.from3)}</td>
