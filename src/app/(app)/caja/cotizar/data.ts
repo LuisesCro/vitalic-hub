@@ -86,6 +86,8 @@ export type WholesaleList = {
 // Solo los códigos de Vitalic se muestran al cliente; los internos de proveedores quedan en blanco.
 const publicCode = (sku: string) => (/^VTL-/i.test(sku) ? sku : "");
 // Redondeo hacia arriba: a $100 en precios normales y a $10 en precios menores a $2.000, para que el descuento nunca deje el precio más alto que el original.
+// La lista va por kilo (o por pieza): un producto con peso o volumen en el nombre («125», «250g», «60ml») es una presentación y no sale.
+const HAS_SIZE = /\b\d+(?:[.,]\d+)?\s*(?:g|gr|grs|gramos?|kg|kilos?|ml|cc|lt|l|oz|\d?og)\b|\s\d{2,4}\s*$/i;
 const PIECE = /astilla|pepitas?|turr[oó]n/i;
 const roundUp100 = (v: number) => (v < 2000 ? Math.ceil(v / 10) * 10 : Math.ceil(v / 100) * 100);
 
@@ -98,7 +100,7 @@ export async function wholesaleList(s: Settings): Promise<WholesaleList> {
   const recipes = await loadComponents();
   const fams = new Map((await db.select().from(productFamilies)).map((f) => [f.id, f]));
   // Fuera de la lista mayorista por decisión del dueño: aceite de oliva, aceitunas, brevas, Nachili, alcaparras, cerezas 3A, duraznos, piña, stevia, kanawi y sacha inchi.
-  const NOT_WHOLESALE = /aceite de oliva|aceituna|breva|\bn(a)?chili|alcaparra|cerezas?.*3a|duraznos? en mitades|pi[ñn]a (en )?rodajas|stevia|kanawi|sacha\s*inchi|pistacho sin cascara 250/i;
+  const NOT_WHOLESALE = /aceite de oliva|aceituna|breva|\bn(a)?chili|alcaparra|cerezas?.*3a|duraznos? en mitades|pi[ñn]a (en )?rodajas|stevia|kanawi|sacha\s*inchi|pistacho sin cascara (125|250)/i;
   const items = (await db.select().from(products).where(eq(products.active, true))).filter((p) => p.priceNet > 0 && p.format !== "sachet" && !NOT_WHOLESALE.test(p.name));
   const mats = new Map((await db.select({ id: rawMaterials.id, cost: rawMaterials.avgCostPerKg }).from(rawMaterials)).map((m) => [m.id, m.cost]));
   const gross = (p: (typeof items)[number]) => p.priceNet * (1 + p.ivaRate);
@@ -148,9 +150,12 @@ export async function wholesaleList(s: Settings): Promise<WholesaleList> {
     }
   }
   const by = (a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name, "es");
+  const noSize = (r: { name: string }) => /astilla|pepitas?/i.test(r.name) || !HAS_SIZE.test(r.name);
+  for (const [cat, list] of cats) cats.set(cat, list.filter(noSize));
+  const unitsOk = units.filter(noSize);
   return {
-    groups: [...cats.entries()].sort(([a], [b]) => a.localeCompare(b, "es")).map(([category, rows]) => ({ category, rows: rows.sort(by) })),
-    units: units.sort(by),
+    groups: [...cats.entries()].filter(([, rows]) => rows.length > 0).sort(([a], [b]) => a.localeCompare(b, "es")).map(([category, rows]) => ({ category, rows: rows.sort(by) })),
+    units: unitsOk.sort(by),
     belowFloor: belowFloor.sort(), belowCost: belowCost.sort(),
   };
 }
