@@ -48,7 +48,8 @@ export default async function CatalogoPage({ searchParams }: { searchParams: Pro
   return (
     <div className="space-y-4">
       <PageHeader title="Catálogo" subtitle="Tus productos, sus presentaciones (125 g, 250 g, sachet…) y la receta de cada una.">
-        <Link href="/catalogo/sachets" className="btn-secondary">Sachets $1.000</Link>
+        <Link href="/catalogo/revision" className="btn-secondary">Revisar gramos</Link>
+          <Link href="/catalogo/sachets" className="btn-secondary">Sachets $1.000</Link>
         <Link href="/catalogo/nuevo" className="btn-primary">+ Nuevo producto</Link>
       </PageHeader>
 
