@@ -4,7 +4,7 @@ import Link, { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
-  IconBag, IconBox, IconLayers, IconScale, IconCart, IconCash, IconChart, IconHome, IconKey, IconLeaf, IconLogout, IconMenu, IconReceipt,
+  IconAlert, IconBag, IconBox, IconLayers, IconScale, IconCart, IconCash, IconChart, IconHome, IconKey, IconLeaf, IconLogout, IconMenu, IconReceipt,
   IconSettings, IconTag, IconUpload, IconX, BrandLogo,
 } from "./icons";
 
@@ -23,6 +23,7 @@ const ADMIN: Group[] = [
       { href: "/empaque", label: "Empaque", icon: IconBag, hint: "Granel a bolsas" },
       { href: "/sachets", label: "Guía de sachets", icon: IconBag, hint: "Gramos de cada sachet" },
       { href: "/inventario", label: "Inventario", icon: IconBox, hint: "Existencias y conteos" },
+      { href: "/por-pedir", label: "Por pedir", icon: IconAlert, hint: "Lo que marcó la cajera" },
     ],
   },
   {
@@ -52,6 +53,7 @@ const CASHIER: Group[] = [
       { href: "/caja/cierre", label: "Cierre del día", icon: IconReceipt },
       { href: "/caja/cotizar", label: "Cotizar", icon: IconScale },
       { href: "/sachets", label: "Guía de sachets", icon: IconBag },
+      { href: "/por-pedir", label: "Lo que se acaba", icon: IconAlert },
       { href: "/facturas", label: "Fotos de facturas", icon: IconReceipt },
       { href: "/ajustes", label: "Mi clave", icon: IconKey },
     ],
@@ -75,9 +77,10 @@ function isActive(path: string, href: string) {
 }
 
 export function AppShell({
-  name, role, logout, children,
+  name, role, logout, urgent = 0, children,
 }: {
   name: string;
+  urgent?: number;
   role: string;
   logout: () => Promise<void>;
   children: React.ReactNode;
@@ -136,6 +139,9 @@ export function AppShell({
                   >
                     <NavIcon icon={Icon} className={`size-5 ${active ? "" : "text-muted"}`} />
                     {item.label}
+                    {item.href === "/por-pedir" && urgent > 0 && role === "admin" && (
+                      <span className="ml-auto rounded-full bg-[var(--bad)] px-2 py-0.5 text-xs font-semibold text-white">{urgent}</span>
+                    )}
                   </Link>
                 </li>
               );

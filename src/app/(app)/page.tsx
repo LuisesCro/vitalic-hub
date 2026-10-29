@@ -8,6 +8,7 @@ import { dayProfit, expensesByMonth, monthlySales, productPerformance, rawMateri
 import { salesOfDay } from "@/lib/day-sales";
 import { stockAlerts } from "@/lib/stock-alerts";
 import { StockAlerts } from "@/components/stock-alerts";
+import { restockRequests } from "@/db/schema";
 import { PAYMENT_METHODS } from "@/lib/cash";
 import { getSettings } from "@/lib/settings";
 import { EmptyState, StatCard, TodoRow } from "@/components/ui";
@@ -48,6 +49,7 @@ export default async function InicioPage() {
     .where(eq(cashSessions.businessDate, todayISO()));
 
   const alerts = await stockAlerts({ insumos: true });
+  const urgentList = await db.select({ name: restockRequests.name }).from(restockRequests).where(eq(restockRequests.status, "pendiente"));
   const today = await salesOfDay(todayISO());
   const todayProfit = await dayProfit(todayISO());
   const thisMonth = todayISO().slice(0, 7);
@@ -85,6 +87,16 @@ export default async function InicioPage() {
         <p className="text-sm text-muted first-letter:uppercase">{fmtToday()}</p>
         <h1>{greeting()}, {session.name}</h1>
       </div>
+
+      {urgentList.length > 0 && (
+        <section className="rounded-xl border-2 p-3" style={{ borderColor: "var(--bad)", background: "var(--bad-bg)" }} role="alert">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="text-sm font-semibold" style={{ color: "var(--bad)" }}>Martha marcó {urgentList.length} {urgentList.length === 1 ? "producto urgente" : "productos urgentes"} de pedir</h2>
+            <Link href="/por-pedir" className="text-sm font-medium underline">Ver y marcar como pedido</Link>
+          </div>
+          <p className="mt-1 text-sm">{urgentList.map((u) => u.name).join(" · ")}</p>
+        </section>
+      )}
 
       <StockAlerts alerts={alerts} limit={10} />
 

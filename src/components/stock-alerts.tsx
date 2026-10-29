@@ -15,7 +15,7 @@ export function StockAlerts({ alerts, limit = 8, title = "Se está acabando", co
         <h2 className="text-sm font-semibold" style={{ color: out ? "var(--bad)" : "var(--warn)" }}>
           {title}: {alerts.length} {alerts.length === 1 ? "producto" : "productos"}{out ? ` (${out} ${out === 1 ? "agotado" : "agotados"})` : ""}
         </h2>
-        {!compact && <Link href="/inventario" className="text-sm underline">Ver inventario</Link>}
+        <Link href="/por-pedir" className="text-sm font-medium underline">Ver todo y marcar urgentes</Link>
       </div>
       <ul className="mt-2 grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2">
         {shown.map((a) => (
@@ -25,7 +25,7 @@ export function StockAlerts({ alerts, limit = 8, title = "Se está acabando", co
           </li>
         ))}
       </ul>
-      {alerts.length > shown.length && <p className="mt-1 text-xs text-muted">y {alerts.length - shown.length} más…</p>}
+      {alerts.length > shown.length && <p className="mt-1 text-sm"><Link href="/por-pedir" className="underline">y {alerts.length - shown.length} más… ver la lista completa</Link></p>}
     </section>
   );
 }

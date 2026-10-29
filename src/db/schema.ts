@@ -347,3 +347,19 @@ export const invoicePhotos = pgTable("invoice_photos", {
   uploadedBy: integer("uploaded_by").references(() => users.id),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
+
+// Lo que la cajera marca como urgente de pedir; el administrador lo ve y lo marca como pedido.
+export const restockRequests = pgTable(
+  "restock_requests",
+  {
+    id: serial("id").primaryKey(),
+    kind: text("kind").notNull(), // bolsa | insumo
+    refId: integer("ref_id").notNull(),
+    name: text("name").notNull(),
+    status: text("status").notNull().default("pendiente"), // pendiente | pedido
+    requestedBy: integer("requested_by").references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    orderedAt: timestamp("ordered_at", { withTimezone: true }),
+  },
+  (t) => [index("restock_requests_status_idx").on(t.status)],
+);
