@@ -2,12 +2,12 @@ import { requireAdmin } from "@/lib/session";
 import Link from "next/link";
 import { desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { purchases, supplierPayments, suppliers } from "@/db/schema";
+import { invoicePhotos, purchases, supplierPayments, suppliers } from "@/db/schema";
 import { UploadForm } from "@/components/upload-form";
 import { PageHeader, StatCard } from "@/components/ui";
 import { fmtCOP, todayISO } from "@/lib/format";
 import { PAYMENT_METHODS_SUPPLIER, daysUntil, payStatus, type PayStatus, type SupplierPaymentMethod } from "@/lib/payables";
-import { uploadInvoice } from "./actions";
+import { discardInvoicePhoto, loadInvoicePhoto, uploadInvoice } from "./actions";
 import { markPurchasePaid } from "./payments";
 import { PayBadge } from "./status-badge";
 
@@ -16,7 +16,7 @@ export const metadata = { title: "Compras · Vitalic Hub" };
 const VIEWS = { todas: "Todas", porpagar: "Por pagar", vencidas: "Vencidas", pagadas: "Pagadas" } as const;
 type View = keyof typeof VIEWS;
 
-export default async function ComprasPage({ searchParams }: { searchParams: Promise<{ vista?: string; proveedor?: string }> }) {
+export default async function ComprasPage({ searchParams }: { searchParams: Promise<{ vista?: string; proveedor?: string; error?: string }> }) {
   await requireAdmin();
   const params = await searchParams;
   const vista: View = (params.vista as View) in VIEWS ? (params.vista as View) : "todas";
@@ -63,6 +63,9 @@ export default async function ComprasPage({ searchParams }: { searchParams: Prom
     vencidas: (s) => s === "vencida",
     pagadas: (s) => s === "pagada",
   };
+  const pendingPhotos = await db
+    .select({ id: invoicePhotos.id, note: invoicePhotos.note, createdAt: invoicePhotos.createdAt })
+    .from(invoicePhotos).where(eq(invoicePhotos.status, "pendiente")).orderBy(invoicePhotos.id);
   const list = all.filter((r) => want[vista](r.status) && (!proveedor || r.supplierId === proveedor));
   const sum = (xs: { balance: number }[]) => xs.reduce((t, x) => t + x.balance, 0);
   const link = (v: View) => `/compras?vista=${v}${proveedor ? `&proveedor=${proveedor}` : ""}`;
@@ -70,6 +73,29 @@ export default async function ComprasPage({ searchParams }: { searchParams: Prom
   return (
     <div className="space-y-5">
       <PageHeader title="Compras y cuentas por pagar" subtitle="Facturas de proveedores: lo que entra al inventario y lo que se debe." />
+
+      {params.error && <p className="rounded-lg px-3 py-2 text-sm" style={{ background: "var(--bad-bg)", color: "var(--bad)" }}>{params.error}</p>}
+
+      {pendingPhotos.length > 0 && (
+        <section className="card space-y-3">
+          <h2 className="font-semibold">Fotos de facturas enviadas por la cajera ({pendingPhotos.length})</h2>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {pendingPhotos.map((p) => (
+              <div key={p.id} className="space-y-2 rounded-xl border border-[var(--border)] p-2">
+                <a href={`/facturas/foto/${p.id}`} target="_blank" rel="noreferrer">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={`/facturas/foto/${p.id}`} alt="Factura" className="h-48 w-full rounded-lg object-cover" />
+                </a>
+                <p className="text-xs text-muted">{p.createdAt.toLocaleString("es-CO", { timeZone: "America/Bogota", dateStyle: "medium", timeStyle: "short" })}{p.note ? ` · ${p.note}` : ""}</p>
+                <div className="flex gap-2">
+                  <form action={loadInvoicePhoto}><input type="hidden" name="id" value={p.id} /><button className="btn-primary">Leer y cargar</button></form>
+                  <form action={discardInvoicePhoto}><input type="hidden" name="id" value={p.id} /><button className="btn-secondary">Descartar</button></form>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard label="Por pagar" value={fmtCOP(sum(open))} hint={`${open.length} facturas`} />

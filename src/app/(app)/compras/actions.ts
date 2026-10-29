@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
 import { purchaseLines, purchases, rawMaterials, stockMovements, supplierItemMap, suppliers } from "@/db/schema";
+import { invoicePhotos } from "@/db/schema";
 import { readInvoiceWithAI, type ImageMediaType } from "@/lib/ai-invoice";
 import { parseDianFile, type ParsedInvoice } from "@/lib/dian";
 import { applyMovement } from "@/lib/inventory";
@@ -272,4 +273,33 @@ export async function deleteDraft(formData: FormData) {
   await db.delete(purchases).where(and(eq(purchases.id, purchaseId), inArray(purchases.status, ["borrador"])));
   revalidatePath("/compras");
   redirect("/compras");
+}
+
+/** Lee con IA la foto que envió la cajera y crea la compra en borrador para revisarla. */
+export async function loadInvoicePhoto(formData: FormData) {
+  const session = await requireAdmin();
+  const id = Number(formData.get("id"));
+  const [photo] = await db.select().from(invoicePhotos).where(eq(invoicePhotos.id, id));
+  if (!photo || photo.status !== "pendiente") redirect("/compras");
+  let purchaseId: number;
+  try {
+    const parsed = await readInvoiceWithAI(new Uint8Array(Buffer.from(photo.imageBase64, "base64")), photo.mediaType as ImageMediaType);
+    if (parsed.cufe) {
+      const [dup] = await db.select({ id: purchases.id }).from(purchases).where(eq(purchases.cufe, parsed.cufe)).limit(1);
+      if (dup) redirect(`/compras?error=${encodeURIComponent(`Esa factura ya está cargada (compra #${dup.id})`)}`);
+    }
+    purchaseId = await createDraft(parsed, "foto", null, session.userId);
+  } catch (e) {
+    if (e instanceof Error && e.message === "NEXT_REDIRECT") throw e;
+    if (typeof e === "object" && e && "digest" in e) throw e;
+    redirect(`/compras?error=${encodeURIComponent(e instanceof Error ? e.message : "No pude leer la foto")}`);
+  }
+  await db.update(invoicePhotos).set({ status: "cargada", purchaseId }).where(eq(invoicePhotos.id, id));
+  redirect(`/compras/${purchaseId}`);
+}
+
+export async function discardInvoicePhoto(formData: FormData) {
+  await requireAdmin();
+  await db.update(invoicePhotos).set({ status: "descartada" }).where(eq(invoicePhotos.id, Number(formData.get("id"))));
+  revalidatePath("/compras");
 }

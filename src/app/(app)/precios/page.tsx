@@ -90,7 +90,7 @@ export default async function PreciosPage({ searchParams }: { searchParams: Prom
             </tr>
           </thead>
           <tbody>
-            {table.slice(0, 400).map((r) => (
+            {table.slice(0, 1500).map((r) => (
               <tr key={r.p.id}>
                 <td className="min-w-44">{r.p.name}</td>
                 <td className="text-right">{fmtCOP(r.cost)}</td>

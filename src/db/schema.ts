@@ -335,3 +335,15 @@ export const posSales = pgTable(
   },
   (t) => [index("pos_sales_date_idx").on(t.businessDate)],
 );
+
+// Fotos de facturas de proveedores que toma la cajera; el administrador las convierte en compra.
+export const invoicePhotos = pgTable("invoice_photos", {
+  id: serial("id").primaryKey(),
+  imageBase64: text("image_base64").notNull(),
+  mediaType: text("media_type").notNull(),
+  note: text("note"),
+  status: text("status").notNull().default("pendiente"), // pendiente | cargada | descartada
+  purchaseId: integer("purchase_id").references(() => purchases.id, { onDelete: "set null" }),
+  uploadedBy: integer("uploaded_by").references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});

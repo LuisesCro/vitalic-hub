@@ -82,6 +82,17 @@ const STATEMENTS = [
     "created_at" timestamp with time zone DEFAULT now() NOT NULL
   )`,
   sql`CREATE INDEX IF NOT EXISTS "supplier_payments_purchase_idx" ON "supplier_payments" ("purchase_id")`,
+  // 0011_fotos_facturas
+  sql`CREATE TABLE IF NOT EXISTS "invoice_photos" (
+    "id" serial PRIMARY KEY NOT NULL,
+    "image_base64" text NOT NULL,
+    "media_type" text NOT NULL,
+    "note" text,
+    "status" text DEFAULT 'pendiente' NOT NULL,
+    "purchase_id" integer REFERENCES "purchases"("id") ON DELETE SET NULL,
+    "uploaded_by" integer REFERENCES "users"("id"),
+    "created_at" timestamp with time zone DEFAULT now() NOT NULL
+  )`,
   // 0008_granel_en_caja
   sql`ALTER TABLE "bulk_sales" ADD COLUMN IF NOT EXISTS "pos_sale_id" integer`,
   // 0009_devoluciones_y_stock

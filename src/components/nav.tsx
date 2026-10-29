@@ -52,6 +52,7 @@ const CASHIER: Group[] = [
       { href: "/caja/cierre", label: "Cierre del día", icon: IconReceipt },
       { href: "/caja/cotizar", label: "Cotizar", icon: IconScale },
       { href: "/sachets", label: "Guía de sachets", icon: IconBag },
+      { href: "/facturas", label: "Fotos de facturas", icon: IconReceipt },
       { href: "/ajustes", label: "Mi clave", icon: IconKey },
     ],
   },

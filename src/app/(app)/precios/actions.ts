@@ -31,6 +31,8 @@ export async function uploadCompetitorCatalog(_prev: CompetitorState, formData: 
     .values({ name })
     .onConflictDoUpdate({ target: competitors.name, set: { name } })
     .returning({ id: competitors.id });
+  // El catálogo nuevo reemplaza al anterior del mismo competidor.
+  await db.delete(competitorPrices).where(eq(competitorPrices.competitorId, competitor.id));
   const own = await db.select({ id: products.id, name: products.name, grams: products.grams }).from(products);
   const capturedOn = todayISO();
   let matched = 0;
