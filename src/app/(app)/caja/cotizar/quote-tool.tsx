@@ -1,11 +1,11 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
+import Link from "next/link";
+import { useMemo, useState } from "react";
 import { profitOf, quoteFromTiers } from "@/lib/bulk";
 import { fmtCOP, fmtPct } from "@/lib/format";
 import type { Settings } from "@/lib/settings-defaults";
 import { PrintTicket } from "@/components/ticket";
-import { registerBulkSale, type BulkState } from "./actions";
 import type { PublicQuoteItem as QuoteItem } from "./data";
 
 const strip = (t: string) => t.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
@@ -17,7 +17,6 @@ export function QuoteTool({ items, settings, isAdmin }: { items: QuoteItem[]; se
   const [picked, setPicked] = useState<QuoteItem | null>(null);
   const [kgText, setKgText] = useState("1");
   const [total, setTotal] = useState("");
-  const [state, action, pending] = useActionState<BulkState, FormData>(registerBulkSale, {});
 
   const matches = useMemo(() => {
     const q = strip(query.trim());
@@ -123,57 +122,17 @@ export function QuoteTool({ items, settings, isAdmin }: { items: QuoteItem[]; se
             <span className="text-xs text-muted">Para entregarle al cliente el precio por escrito.</span>
           </div>
 
-          <form action={action} className="space-y-3 border-t border-[var(--border)] pt-4">
+          <div className="space-y-2 border-t border-[var(--border)] pt-4">
             <h3 className="font-semibold">¿El cliente lo lleva?</h3>
-            <input type="hidden" name="familyId" value={picked.familyId} />
-            <input type="hidden" name="kg" value={kg} />
-            <div className="grid gap-3 sm:grid-cols-2">
-              <label>
-                <span className="label">Valor final que paga (con IVA)</span>
-                <input value={total} onChange={(e) => setTotal(e.target.value)} placeholder={String(quote.total)} inputMode="numeric" className="input" />
-              </label>
-              <label>
-                <span className="label">Cliente (opcional)</span>
-                <input name="customer" placeholder="Nombre o empresa" className="input" />
-              </label>
-            </div>
-            <input type="hidden" name="total" value={finalTotal} />
-            {belowFloor && (
-              <p className="rounded-lg px-3 py-2 text-sm" style={{ background: "var(--bad-bg)", color: "var(--bad)" }}>
-                Está por debajo del precio mínimo{isAdmin ? "; como administrador puedes registrarlo igual." : ". Pide autorización a Luis o Paula."}
-              </p>
-            )}
-            <button className="btn-primary" disabled={pending || (belowFloor && !isAdmin)}>
-              {pending ? "Registrando…" : `Registrar venta y descontar ${kg.toLocaleString("es-CO")} kg del inventario`}
-            </button>
-            <p className="text-xs text-muted">
-              Después factúralo en Vendty con el producto «{picked.name} x kg» (cantidad {kg.toLocaleString("es-CO")}, precio por kilo{" "}
-              {fmtCOP(Math.round(finalTotal / (kg || 1)))}). Si no existe en Vendty, créalo una sola vez con unidad kilo.
+            <p className="text-sm text-muted">
+              Cóbralo en la caja para que entre a las ventas, al cuadre y al inventario: en Vender usa «Vender a granel / bulto 25 kg»,
+              elige {picked.name}, {kg.toLocaleString("es-CO")} kg y escribe el valor final. Esta pantalla solo cotiza.
             </p>
-          </form>
+            <Link href="/vender" className="btn-primary inline-block">Ir a cobrar en la caja</Link>
+          </div>
         </section>
       )}
 
-      {state.ok && (
-        <div className="space-y-2">
-          <p className="rounded-lg px-3 py-2 text-sm" style={{ background: "var(--good-bg)", color: "var(--good)" }}>{state.ok}</p>
-          {state.receipt && (
-            <PrintTicket
-              label="Imprimir recibo de la venta"
-              className="btn-primary"
-              data={{
-                title: "RECIBO DE VENTA",
-                number: `G-${state.receipt.id}`,
-                date: new Date(state.receipt.date + "T12:00:00").toLocaleDateString("es-CO"),
-                rows: [...(state.receipt.customer ? [{ label: "Cliente", value: state.receipt.customer }] : []), { label: "Atendió", value: state.receipt.seller }],
-                items: [{ name: state.receipt.product, detail: `${state.receipt.kg.toLocaleString("es-CO")} kg × ${fmtCOP(state.receipt.perKg)}`, total: state.receipt.total }],
-                totals: [{ label: "TOTAL", value: fmtCOP(state.receipt.total), big: true }],
-              }}
-            />
-          )}
-        </div>
-      )}
-      {state.error && <p className="rounded-lg px-3 py-2 text-sm" style={{ background: "var(--bad-bg)", color: "var(--bad)" }}>{state.error}</p>}
     </div>
   );
 }

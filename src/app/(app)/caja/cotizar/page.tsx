@@ -6,7 +6,8 @@ import { PageHeader } from "@/components/ui";
 import { fmtCOP } from "@/lib/format";
 import { requireSession } from "@/lib/session";
 import { getSettings } from "@/lib/settings";
-import { cancelBulkSale } from "./actions";
+import { POS_METHODS } from "@/lib/pos";
+import { bulkToPosSale, cancelBulkSale } from "./actions";
 import { quoteItems, toPublic } from "./data";
 import { QuoteTool } from "./quote-tool";
 
@@ -42,7 +43,16 @@ export default async function CotizarPage() {
                   <td className="text-right">{fmtCOP(s.totalGross)}</td><td className="text-right text-muted">{fmtCOP(s.suggestedGross)}</td>
                   <td>{s.customer ?? "—"}</td><td>{by ?? "—"}</td>
                   {session.role === "admin" && (
-                    <td>
+                    <td className="space-y-1">
+                      {!s.posSaleId && (
+                        <form action={bulkToPosSale} className="flex items-center gap-1">
+                          <input type="hidden" name="id" value={s.id} />
+                          <select name="method" className="input !py-1 text-xs" aria-label="Medio de pago" defaultValue="efectivo">
+                            {Object.entries(POS_METHODS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                          </select>
+                          <button className="btn-secondary !px-2 !py-1 text-xs" title="Esta venta no entró a las ventas de la caja">Pasar a ventas</button>
+                        </form>
+                      )}
                       <form action={cancelBulkSale}>
                         <input type="hidden" name="id" value={s.id} />
                         <button className="text-xs text-muted underline">Anular</button>
