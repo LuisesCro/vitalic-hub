@@ -37,14 +37,14 @@ export default async function SachetsPage() {
 
   return (
     <div className="space-y-4">
-      <PageHeader title="Sachets" subtitle="El sachet de $1.000: cuántos gramos lleva cada uno según la regla de costo.">
+      <PageHeader title="Sachets" subtitle={`El sachet de ${fmtCOP(s.sachetPrecio)}: cuántos gramos lleva cada uno según la regla de costo.`}>
         <Link href="/catalogo" className="btn-secondary">← Catálogo</Link>
       </PageHeader>
       <p className="text-sm text-muted">
         <strong>Regla:</strong> todos los sachets pesan {s.sachetGramos} g. Si {s.sachetGramos} g del insumo cuestan más de {fmtCOP(s.sachetCostoUmbral)}, el sachet baja de gramos hasta quedar en unos {fmtCOP(s.sachetCostoMaximo)} de costo
         (al gramo más cercano). {data.length} sachets activos; <strong>{off}</strong> no están con el gramaje de la regla. Cuando suba o baje el costo de un insumo, vuelve a pulsar «Aplicar la regla».
       </p>
-      <SachetActions />
+      <SachetActions price={s.sachetPrecio} />
       <section className="card overflow-x-auto">
         <table className="table-base">
           <thead>

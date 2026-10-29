@@ -3,8 +3,9 @@
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
-import { productComponents, productFamilies, products, rawMaterials, saleLines } from "@/db/schema";
+import { productComponents, productFamilies, products, rawMaterials, saleLines, settings as settingsTable } from "@/db/schema";
 import { skuFor } from "@/lib/catalog";
+import { fmtCOP } from "@/lib/format";
 import { loadComponents } from "@/lib/components";
 import { matchRawMaterial } from "@/lib/matching";
 import { sachetGramsForName } from "@/lib/sachet";
@@ -55,7 +56,7 @@ export async function applySachetRule(_prev: SachetState): Promise<SachetState> 
   return { ok: parts.join(" ") };
 }
 
-/** Crea un sachet de $1.000 para cada condimento o especia que todavía no lo tiene, ya con el gramaje de la regla. */
+/** Crea un sachet al precio de los sachets para cada condimento o especia que todavía no lo tiene, ya con el gramaje de la regla. */
 export async function createMissingSachets(_prev: SachetState): Promise<SachetState> {
   await requireAdmin();
   const s = await getSettings();
@@ -97,7 +98,7 @@ export async function createMissingSachets(_prev: SachetState): Promise<SachetSt
         .insert(products)
         .values({
           sku, name: `${f.name} sachet`, category: f.category, grams, rawMaterialId: raw, ivaRate: f.ivaRate, format: "sachet", familyId: f.id,
-          priceNet: Math.round((1000 / (1 + f.ivaRate)) * 100) / 100, active: true,
+          priceNet: Math.round((s.sachetPrecio / (1 + f.ivaRate)) * 100) / 100, active: true,
         })
         .returning({ id: products.id });
       await tx.insert(productComponents).values({ productId: row.id, rawMaterialId: raw, grams });
@@ -106,7 +107,7 @@ export async function createMissingSachets(_prev: SachetState): Promise<SachetSt
   });
   revalidatePath("/catalogo", "layout");
   revalidatePath("/vender");
-  const parts = [created.length ? `Creé ${created.length} sachets de $1.000: ${created.slice(0, 20).join(", ")}${created.length > 20 ? "…" : ""}.` : "No faltaba ningún sachet."];
+  const parts = [created.length ? `Creé ${created.length} sachets de ${fmtCOP(s.sachetPrecio)}: ${created.slice(0, 20).join(", ")}${created.length > 20 ? "…" : ""}.` : "No faltaba ningún sachet."];
   if (skipped.length) parts.push(`No creé: ${skipped.join(", ")}.`);
   return { ok: parts.join(" ") };
 }
@@ -156,4 +157,21 @@ export async function unifyDuplicateSachets(_prev: SachetState): Promise<SachetS
   revalidatePath("/vender");
   revalidatePath("/sachets");
   return { ok: done.length ? `Unifiqué ${done.length} repetidos: ${done.join("; ")}.` : "No hay sachets repetidos." };
+}
+
+/** Cambia el precio al público (con IVA) de todos los sachets y lo deja como precio de los sachets nuevos. */
+export async function setSachetPrice(_prev: SachetState, formData: FormData): Promise<SachetState> {
+  await requireAdmin();
+  const price = Number(String(formData.get("price") ?? "").replace(/[^0-9]/g, ""));
+  if (!(price >= 500 && price <= 20000)) return { error: "Escribe un precio entre $500 y $20.000" };
+  const all = await db.select({ id: products.id, ivaRate: products.ivaRate }).from(products).where(eq(products.format, "sachet"));
+  await db.transaction(async (tx) => {
+    for (const p of all) await tx.update(products).set({ priceNet: Math.round((price / (1 + p.ivaRate)) * 100) / 100 }).where(eq(products.id, p.id));
+    await tx.insert(settingsTable).values({ key: "sachetPrecio", value: String(price) }).onConflictDoUpdate({ target: settingsTable.key, set: { value: String(price) } });
+  });
+  revalidatePath("/catalogo", "layout");
+  revalidatePath("/vender");
+  revalidatePath("/precios");
+  revalidatePath("/sachets");
+  return { ok: `Listo: ${all.length} sachets quedaron a ${fmtCOP(price)}.` };
 }

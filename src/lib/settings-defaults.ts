@@ -39,6 +39,8 @@ export const DEFAULT_SETTINGS = {
   descontarInsumoAlVender: 1,
   // Regla de los sachets de $1.000: todos pesan 20 g, salvo que 20 g del insumo cuesten más del umbral;
   // en ese caso llevan los gramos justos para no pasar del costo máximo.
+  // Precio al público (con IVA) de todos los sachets.
+  sachetPrecio: 1000,
   sachetGramos: 20,
   sachetCostoUmbral: 300,
   sachetCostoMaximo: 350,
@@ -78,6 +80,7 @@ export const SETTING_LABELS: Record<SettingKey, { label: string; kind: "pct" | "
   margenGranelPiso: { label: "Margen mínimo al negociar por kilo (precio más bajo que ve la caja)", kind: "pct" },
   descuentoMaxCajera: { label: "Descuento máximo que puede dar la cajera al cobrar", kind: "pct" },
   descontarInsumoAlVender: { label: "Descontar insumos del inventario en cada venta de la caja (1 = sí, 0 = no)", kind: "num" },
+  sachetPrecio: { label: "Precio de un sachet (con IVA)", kind: "cop" },
   sachetGramos: { label: "Gramos de un sachet", kind: "num" },
   sachetCostoUmbral: { label: "Sachet: si 20 g del insumo cuestan más de este valor, se baja el gramaje", kind: "cop" },
   sachetCostoMaximo: { label: "Sachet: costo máximo del insumo cuando se baja el gramaje", kind: "cop" },

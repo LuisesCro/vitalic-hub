@@ -32,7 +32,7 @@ export function familyKey(productName: string): string {
 /** Sachet: precio al público de unos $1.000 y pocos gramos. */
 export function detectFormat(priceGross: number, grams: number | null): Format {
   if (grams === null) return "unidad";
-  if (priceGross > 0 && priceGross <= 1100 && grams <= 40) return "sachet";
+  if (priceGross > 0 && priceGross <= 1600 && grams <= 40) return "sachet";
   return "bolsa";
 }
 
