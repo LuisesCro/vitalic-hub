@@ -8,6 +8,7 @@ import { loadComponents, loadRawCosts } from "@/lib/components";
 import { fmtCOP, fmtPct } from "@/lib/format";
 import { margin, recommendPrice, RULE_LABELS } from "@/lib/pricing";
 import { getSettings } from "@/lib/settings";
+import { normalize } from "@/lib/units";
 import { CompetitorForm } from "./competitor-form";
 import { setProductPrice } from "./actions";
 
@@ -16,9 +17,11 @@ export const metadata = { title: "Precios · Vitalic Hub" };
 const VIEWS = { cambios: "Con cambio", bajo: "Bajo el margen mínimo", todos: "Todos" } as const;
 type View = keyof typeof VIEWS;
 
-export default async function PreciosPage({ searchParams }: { searchParams: Promise<{ vista?: string }> }) {
+export default async function PreciosPage({ searchParams }: { searchParams: Promise<{ vista?: string; q?: string }> }) {
   await requireAdmin();
-  const vista: View = ((await searchParams).vista as View) in VIEWS ? ((await searchParams).vista as View) : "cambios";
+  const sp = await searchParams;
+  const vista: View = (sp.vista as View) in VIEWS ? (sp.vista as View) : "cambios";
+  const q = normalize(sp.q ?? "");
   const s = await getSettings();
   const recipes = await loadComponents();
   const rawCosts = await loadRawCosts();
@@ -39,7 +42,7 @@ export default async function PreciosPage({ searchParams }: { searchParams: Prom
   }
 
   const table = rows
-    .filter(({ p }) => p.priceNet > 0)
+    .filter(({ p }) => p.priceNet > 0 && (!q || normalize(p.name).includes(q)))
     .map(({ p }) => {
       const comps = (recipes.get(p.id) ?? []).map((c) => ({ grams: c.grams, costPerKg: rawCosts.get(c.rawMaterialId) ?? null }));
       const cost = unitCostFromComponents(p, comps, s);
@@ -52,7 +55,7 @@ export default async function PreciosPage({ searchParams }: { searchParams: Prom
       return { p, cost, currentGross, currentMargin: cost !== null ? margin(p.priceNet, cost) : null, comp, rec };
     })
     .filter((r) =>
-      vista === "todos" ? true : vista === "bajo" ? r.currentMargin !== null && r.currentMargin < s.margenMinimo : (r.rec.change ?? 0) !== 0,
+      vista === "todos" || q ? true : vista === "bajo" ? r.currentMargin !== null && r.currentMargin < s.margenMinimo : (r.rec.change ?? 0) !== 0,
     )
     .sort((a, b) => Math.abs(b.rec.change ?? 0) - Math.abs(a.rec.change ?? 0));
 
@@ -68,6 +71,11 @@ export default async function PreciosPage({ searchParams }: { searchParams: Prom
         Sin competencia se usa el margen objetivo ({fmtPct(s.margenObjetivoFrutosSecos)} frutos secos, {fmtPct(s.margenObjetivoEspecias)} especias).
         {s.permitirBajarPrecios ? "" : " Hoy el motor no recomienda bajar precios (se cambia en Ajustes)."} Precios al público con IVA.
       </p>
+      <form className="flex gap-2 text-sm">
+        <input type="hidden" name="vista" value={vista} />
+        <input name="q" defaultValue={sp.q ?? ""} placeholder="Buscar producto…" className="input max-w-xs" />
+        <button className="btn-secondary">Buscar</button>
+      </form>
       <div className="flex gap-2 text-sm">
         {(Object.keys(VIEWS) as View[]).map((v) => (
           <Link key={v} href={`/precios?vista=${v}`} className={vista === v ? "btn-primary" : "btn-secondary"}>{VIEWS[v]}</Link>
