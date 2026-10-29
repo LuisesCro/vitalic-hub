@@ -144,8 +144,8 @@ async function upToDate(): Promise<boolean> {
                (table_name = 'bulk_sales' and column_name = 'pos_sale_id')))
          + (select case when exists (select 1 from products where format = 'papeleta') then 0 else 1 end)
          + (select count(*) from information_schema.tables
-             where table_schema = 'public' and table_name in ('cash_sessions', 'cash_movements', 'product_families', 'product_components', 'bulk_sales', 'supplier_payments', 'pos_sales')) as n`);
-  return Number(rows[0]?.n) === 19;
+             where table_schema = 'public' and table_name in ('cash_sessions', 'cash_movements', 'product_families', 'product_components', 'bulk_sales', 'supplier_payments', 'pos_sales', 'invoice_photos')) as n`);
+  return Number(rows[0]?.n) === 20;
 }
 
 let ready: Promise<void> | null = null;
