@@ -71,6 +71,13 @@
       "when": 1791227280963,
       "tag": "0009_devoluciones_y_stock",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1793285126992,
+      "tag": "0010_fotos_facturas",
+      "breakpoints": true
     }
   ]
 }
