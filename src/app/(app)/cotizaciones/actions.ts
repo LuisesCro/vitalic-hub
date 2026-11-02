@@ -4,7 +4,11 @@ import { and, eq, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
-import { quoteItems, quotes, rawMaterials } from "@/db/schema";
+import { quoteItems, quotes, rawMaterials, supplierPrices, suppliers } from "@/db/schema";
+import { readInvoiceWithAI } from "@/lib/ai-invoice";
+import { todayISO } from "@/lib/format";
+import { matchRawMaterial } from "@/lib/matching";
+import { kgPerInvoiceUnit } from "@/lib/units";
 import { lastKgPrices } from "@/lib/supplier-prices";
 import { requireAdmin } from "@/lib/session";
 
@@ -43,7 +47,12 @@ export async function generateQuote(formData: FormData) {
 export async function saveQuoteLine(formData: FormData) {
   await requireAdmin();
   const id = Number(formData.get("id"));
-  const [line] = await db.update(quoteItems).set({ qtyKg: kgNum(formData.get("qtyKg")), price: num(formData.get("price")) }).where(eq(quoteItems.id, id)).returning({ quoteId: quoteItems.quoteId });
+  const iva = Number(formData.get("ivaRate"));
+  const [line] = await db
+    .update(quoteItems)
+    .set({ qtyKg: kgNum(formData.get("qtyKg")), price: num(formData.get("price")), ...(iva === 0 || iva === 0.05 || iva === 0.19 ? { ivaRate: iva } : {}) })
+    .where(eq(quoteItems.id, id))
+    .returning({ quoteId: quoteItems.quoteId });
   refresh(line?.quoteId ?? undefined);
 }
 
@@ -93,4 +102,53 @@ export async function deleteQuote(formData: FormData) {
   await db.delete(quotes).where(eq(quotes.id, Number(formData.get("id"))));
   refresh();
   redirect("/cotizaciones");
+}
+
+/** Cómo vienen los precios de este proveedor: sin mostrar IVA, sumándolo, o ya con IVA incluido. No toca el IVA de los productos de Vitalic. */
+export async function setSupplierIvaMode(formData: FormData) {
+  await requireAdmin();
+  const mode = String(formData.get("mode"));
+  if (mode !== "ninguno" && mode !== "sumar" && mode !== "incluido") return;
+  await db.update(suppliers).set({ ivaMode: mode }).where(eq(suppliers.id, Number(formData.get("supplierId"))));
+  refresh(Number(formData.get("quoteId")) || undefined);
+}
+
+export type RefState = { ok?: string; error?: string };
+
+const IMAGE_TYPES: Record<string, "image/jpeg" | "image/png" | "image/webp" | "image/gif"> = {
+  "image/jpeg": "image/jpeg", "image/jpg": "image/jpeg", "image/png": "image/png", "image/webp": "image/webp", "image/gif": "image/gif",
+};
+
+/** Lee una cotización o factura anterior (foto o PDF) y guarda sus precios como referencia del proveedor. */
+export async function uploadReferencePrices(_prev: RefState, formData: FormData): Promise<RefState> {
+  await requireAdmin();
+  const supplierId = Number(formData.get("supplierId"));
+  const file = formData.get("file");
+  if (!supplierId) return { error: "Escoge el proveedor" };
+  if (!(file instanceof File) || file.size === 0) return { error: "Selecciona la foto o el PDF" };
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  let parsed;
+  try {
+    if (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) parsed = await readInvoiceWithAI(bytes, "application/pdf");
+    else if (IMAGE_TYPES[file.type]) parsed = await readInvoiceWithAI(bytes, IMAGE_TYPES[file.type]);
+    else return { error: "Sube una foto (JPG o PNG) o un PDF" };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "No pude leer el documento" };
+  }
+  const materials = await db.select({ id: rawMaterials.id, name: rawMaterials.name }).from(rawMaterials);
+  const date = parsed.issueDate && /^\d{4}-\d{2}-\d{2}$/.test(parsed.issueDate) ? parsed.issueDate : todayISO();
+  const rows = parsed.lines
+    .filter((l) => l.description && l.unitPrice > 0)
+    .map((l) => {
+      const kg = kgPerInvoiceUnit(l.description, l.unit);
+      return {
+        supplierId, rawMaterialId: matchRawMaterial(l.description, materials)?.id ?? null, description: l.description.slice(0, 200),
+        unitPrice: l.unitPrice, packKg: kg, pricePerKg: kg ? Math.round(l.unitPrice / kg) : null, priceDate: date, source: `foto-${todayISO()}`,
+      };
+    });
+  if (rows.length === 0) return { error: "No encontré productos con precio en ese documento" };
+  await db.insert(supplierPrices).values(rows);
+  refresh();
+  const matched = rows.filter((r) => r.rawMaterialId && r.pricePerKg).length;
+  return { ok: `Guardé ${rows.length} precios con fecha ${date}; ${matched} quedaron enlazados a tus insumos y se usarán en las cotizaciones.` };
 }

@@ -130,6 +130,22 @@ const STATEMENTS = [
   )`,
   sql`ALTER TABLE "quote_items" ADD COLUMN IF NOT EXISTS "quote_id" integer REFERENCES "quotes"("id") ON DELETE CASCADE`,
   sql`ALTER TABLE "quote_items" ADD COLUMN IF NOT EXISTS "price" numeric(14, 2) DEFAULT 0 NOT NULL`,
+  // 0015_precios_de_referencia
+  sql`ALTER TABLE "suppliers" ADD COLUMN IF NOT EXISTS "iva_mode" text DEFAULT 'ninguno' NOT NULL`,
+  sql`ALTER TABLE "quote_items" ADD COLUMN IF NOT EXISTS "iva_rate" numeric(5, 4) DEFAULT 0.19 NOT NULL`,
+  sql`CREATE TABLE IF NOT EXISTS "supplier_prices" (
+    "id" serial PRIMARY KEY NOT NULL,
+    "supplier_id" integer NOT NULL REFERENCES "suppliers"("id") ON DELETE CASCADE,
+    "raw_material_id" integer REFERENCES "raw_materials"("id"),
+    "description" text NOT NULL,
+    "unit_price" numeric(14, 2) NOT NULL,
+    "pack_kg" numeric(14, 3),
+    "price_per_kg" numeric(14, 2),
+    "price_date" date NOT NULL,
+    "source" text NOT NULL,
+    "created_at" timestamp with time zone DEFAULT now() NOT NULL
+  )`,
+  sql`CREATE INDEX IF NOT EXISTS "supplier_prices_raw_idx" ON "supplier_prices" ("raw_material_id")`,
   // 0008_granel_en_caja
   sql`ALTER TABLE "bulk_sales" ADD COLUMN IF NOT EXISTS "pos_sale_id" integer`,
   // 0009_devoluciones_y_stock
@@ -179,11 +195,12 @@ async function upToDate(): Promise<boolean> {
                (table_name = 'cash_sessions' and column_name = 'sales_breb') or
                (table_name = 'purchases' and column_name in ('payment_term', 'due_date')) or
                (table_name = 'bulk_sales' and column_name = 'pos_sale_id') or
-               (table_name = 'quote_items' and column_name in ('quote_id', 'price'))))
+               (table_name = 'quote_items' and column_name in ('quote_id', 'price', 'iva_rate')) or
+               (table_name = 'suppliers' and column_name = 'iva_mode')))
          + (select case when exists (select 1 from products where format = 'papeleta') then 0 else 1 end)
          + (select count(*) from information_schema.tables
-             where table_schema = 'public' and table_name in ('cash_sessions', 'cash_movements', 'product_families', 'product_components', 'bulk_sales', 'supplier_payments', 'pos_sales', 'invoice_photos', 'restock_requests', 'quote_items', 'quotes')) as n`);
-  return Number(rows[0]?.n) === 25;
+             where table_schema = 'public' and table_name in ('cash_sessions', 'cash_movements', 'product_families', 'product_components', 'bulk_sales', 'supplier_payments', 'pos_sales', 'invoice_photos', 'restock_requests', 'quote_items', 'quotes', 'supplier_prices')) as n`);
+  return Number(rows[0]?.n) === 28;
 }
 
 let ready: Promise<void> | null = null;
@@ -200,6 +217,13 @@ export function ensureSchema(): Promise<void> {
       await tx.execute(sql`select pg_advisory_xact_lock(732451)`);
       for (const statement of STATEMENTS) await tx.execute(statement);
     });
+    // Datos de referencia (una sola vez); si falla no debe tumbar la aplicación.
+    try {
+      const { loadReferencePrices } = await import("./reference-prices");
+      await loadReferencePrices();
+    } catch (error) {
+      console.error("No se pudieron cargar los precios de referencia", error);
+    }
   })().catch((error) => {
     ready = null;
     throw error;

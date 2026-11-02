@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/ui";
 import { fmtCOP } from "@/lib/format";
 import { requireAdmin } from "@/lib/session";
 import { generateQuote } from "./actions";
+import { ReferenceForm } from "./reference-form";
 
 export const metadata = { title: "Cotizaciones · Vitalic Hub" };
 
@@ -26,6 +27,7 @@ export default async function CotizacionesPage() {
     bySupplier.set(p.item.supplierId, e);
   }
 
+  const supplierList = await db.select({ id: suppliers.id, name: suppliers.name }).from(suppliers).orderBy(suppliers.name);
   const list = await db
     .select({
       q: quotes, supplier: suppliers.name,
@@ -86,6 +88,13 @@ export default async function CotizacionesPage() {
           </section>
         ))
       )}
+      <details className="card">
+        <summary className="cursor-pointer font-semibold">Precios de referencia: subir una cotización o factura anterior</summary>
+        <div className="space-y-2 pt-3">
+          <p className="text-sm text-muted">El HUB lee el documento y guarda los precios por kilo de ese proveedor con la fecha del documento. Las cotizaciones nuevas los usan como precio estimado hasta que haya una compra más reciente.</p>
+          <ReferenceForm suppliers={supplierList} />
+        </div>
+      </details>
     </div>
   );
 }

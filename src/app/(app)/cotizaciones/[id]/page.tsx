@@ -8,7 +8,7 @@ import { BUSINESS } from "@/lib/business";
 import { fmtCOP } from "@/lib/format";
 import { requireAdmin } from "@/lib/session";
 import { lastKgPrices, shortSupplierName } from "@/lib/supplier-prices";
-import { addQuoteLine, deleteQuote, removeQuoteLine, saveQuoteLine, saveQuoteNote, setQuoteStatus } from "../actions";
+import { addQuoteLine, deleteQuote, removeQuoteLine, saveQuoteLine, saveQuoteNote, setQuoteStatus, setSupplierIvaMode } from "../actions";
 import { PrintQuote } from "./print-button";
 
 export const metadata = { title: "Cotización · Vitalic Hub" };
@@ -24,8 +24,14 @@ export default async function QuotePage({ params }: { params: Promise<{ id: stri
   const lines = await db.select().from(quoteItems).where(eq(quoteItems.quoteId, id)).orderBy(asc(quoteItems.name));
   const materials = await db.select({ id: rawMaterials.id, name: rawMaterials.name }).from(rawMaterials).where(eq(rawMaterials.active, true)).orderBy(rawMaterials.name);
   const history = await lastKgPrices(lines.map((l) => l.rawMaterialId).filter((x): x is number => x !== null));
-  const total = lines.reduce((t, l) => t + l.qtyKg * l.price, 0);
+  const mode = supplier?.ivaMode === "sumar" || supplier?.ivaMode === "incluido" ? supplier.ivaMode : "ninguno";
+  const base = (l: { qtyKg: number; price: number }) => l.qtyKg * l.price;
+  const vat = (l: { qtyKg: number; price: number; ivaRate: number }) => (mode === "sumar" ? base(l) * l.ivaRate : 0);
+  const subtotal = lines.reduce((t, l) => t + base(l), 0);
+  const iva = lines.reduce((t, l) => t + vat(l), 0);
+  const total = subtotal + iva;
   const number = `COT-${q.id}`;
+  const ivaLabel = { ninguno: "Sin IVA", sumar: "Se suma IVA", incluido: "IVA incluido" } as const;
 
   return (
     <div className="mx-auto max-w-4xl space-y-4">
@@ -41,6 +47,18 @@ export default async function QuotePage({ params }: { params: Promise<{ id: stri
           <form action={deleteQuote}><input type="hidden" name="id" value={q.id} /><button className="btn-secondary text-red-600">Eliminar</button></form>
         </div>
       </div>
+
+      <form action={setSupplierIvaMode} className="flex flex-wrap items-center gap-2 text-sm print:hidden">
+        <input type="hidden" name="supplierId" value={q.supplierId} />
+        <input type="hidden" name="quoteId" value={q.id} />
+        <span className="text-muted">IVA en los precios de este proveedor:</span>
+        <select key={mode} name="mode" defaultValue={mode} className="input !py-1 w-auto">
+          <option value="ninguno">No mostrar IVA</option>
+          <option value="sumar">Los precios son sin IVA: sumarlo</option>
+          <option value="incluido">Los precios ya incluyen IVA</option>
+        </select>
+        <button className="btn-secondary !px-2 !py-1">Guardar</button>
+      </form>
 
       {/* Documento: lo que se imprime o se guarda en PDF */}
       <article className="rounded-xl bg-white p-5 text-black shadow-sm print:p-0 print:shadow-none">
@@ -63,26 +81,38 @@ export default async function QuotePage({ params }: { params: Promise<{ id: stri
 
         {/* Impresión */}
         <table className="hidden w-full text-sm print:table">
-          <thead><tr className="border-b border-black text-left"><th className="py-1">#</th><th>Producto</th><th className="text-right">Cantidad</th><th className="text-right">Precio por kg</th><th className="text-right">Total</th></tr></thead>
+          <thead>
+            <tr className="border-b border-black text-left">
+              <th className="py-1">#</th><th>Producto</th><th className="text-right">Cantidad</th><th className="text-right">Precio por kg</th>
+              {mode === "sumar" && <th className="text-right">IVA</th>}<th className="text-right">Total</th>
+            </tr>
+          </thead>
           <tbody>
             {lines.map((l, i) => (
               <tr key={l.id} className="border-b border-black/20">
                 <td className="py-1">{i + 1}</td><td>{l.name}</td>
                 <td className="text-right">{l.qtyKg ? `${l.qtyKg.toLocaleString("es-CO")} kg` : ""}</td>
                 <td className="text-right">{l.price ? fmtCOP(l.price) : ""}</td>
-                <td className="text-right">{l.price && l.qtyKg ? fmtCOP(l.price * l.qtyKg) : ""}</td>
+                {mode === "sumar" && <td className="text-right">{l.price ? `${Math.round(l.ivaRate * 100)} %` : ""}</td>}
+                <td className="text-right">{l.price && l.qtyKg ? fmtCOP(base(l) + vat(l)) : ""}</td>
               </tr>
             ))}
           </tbody>
-          {total > 0 && <tfoot><tr><td colSpan={4} className="pt-2 text-right font-semibold">Estimado sin IVA</td><td className="pt-2 text-right font-semibold">{fmtCOP(total)}</td></tr></tfoot>}
+          {subtotal > 0 && (
+            <tfoot>
+              {mode === "sumar" && <><tr><td colSpan={mode === "sumar" ? 5 : 4} className="pt-2 text-right">Subtotal</td><td className="pt-2 text-right">{fmtCOP(subtotal)}</td></tr>
+                <tr><td colSpan={5} className="text-right">IVA</td><td className="text-right">{fmtCOP(iva)}</td></tr></>}
+              <tr><td colSpan={mode === "sumar" ? 5 : 4} className="pt-2 text-right font-semibold">{mode === "sumar" ? "Total con IVA" : mode === "incluido" ? "Total (IVA incluido)" : "Total estimado"}</td><td className="pt-2 text-right font-semibold">{fmtCOP(total)}</td></tr>
+            </tfoot>
+          )}
         </table>
-        <p className="hidden pt-4 text-xs print:block">Por favor confirmar precio por kilo, IVA, forma de pago y tiempo de entrega.</p>
+        <p className="hidden pt-4 text-xs print:block">{mode === "incluido" ? "Precios con IVA incluido. " : ""}Por favor confirmar precio por kilo, {mode === "sumar" ? "IVA, " : ""}forma de pago y tiempo de entrega.</p>
 
         {/* Pantalla: se edita */}
         <div className="print:hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead><tr className="border-b text-left text-xs text-gray-500"><th className="py-1">Producto</th><th>Cantidad (kg)</th><th>Precio por kg (sin IVA)</th><th className="text-right">Total</th><th>Comparar</th><th /></tr></thead>
+              <thead><tr className="border-b text-left text-xs text-gray-500"><th className="py-1">Producto</th><th>Cantidad (kg)</th><th>Precio por kg{mode === "sumar" ? " (sin IVA)" : ""}</th>{mode === "sumar" && <th>IVA</th>}<th className="text-right">Total</th><th className="pl-3">Comparar</th><th /></tr></thead>
               <tbody>
                 {lines.map((l) => {
                   const prices = l.rawMaterialId ? history.get(l.rawMaterialId) ?? [] : [];
@@ -90,16 +120,21 @@ export default async function QuotePage({ params }: { params: Promise<{ id: stri
                   const others = prices.filter((p) => p.supplierId !== q.supplierId);
                   return (
                     <tr key={l.id} className="border-b align-top">
-                      <td className="py-2 pr-2 font-medium">{l.name}{own && <span className="block text-xs font-normal text-gray-500">Última compra aquí: {fmtCOP(own.pricePerKg)}/kg · {own.date}</span>}</td>
-                      <td colSpan={2} className="py-1">
+                      <td className="py-2 pr-2 font-medium">{l.name}{own && <span className="block text-xs font-normal text-gray-500">{own.reference ? "Referencia" : "Última compra"} aquí: {fmtCOP(own.pricePerKg)}/kg · {own.date}</span>}</td>
+                      <td colSpan={mode === "sumar" ? 3 : 2} className="py-1">
                         <form action={saveQuoteLine} className="flex flex-wrap items-center gap-1">
                           <input type="hidden" name="id" value={l.id} />
                           <input name="qtyKg" inputMode="decimal" defaultValue={l.qtyKg} className="input !py-1 w-20" aria-label="Kilos" />
                           <input name="price" inputMode="numeric" defaultValue={l.price || ""} placeholder="$ por kg" className="input !py-1 w-28" aria-label="Precio por kilo" />
+                          {mode === "sumar" && (
+                            <select name="ivaRate" defaultValue={String(l.ivaRate)} className="input !py-1 w-20" aria-label="IVA">
+                              <option value="0">0 %</option><option value="0.05">5 %</option><option value="0.19">19 %</option>
+                            </select>
+                          )}
                           <button className="btn-secondary !px-2 !py-1 text-xs">Guardar</button>
                         </form>
                       </td>
-                      <td className="py-2 text-right tabular-nums">{l.price && l.qtyKg ? fmtCOP(l.price * l.qtyKg) : "—"}</td>
+                      <td className="py-2 text-right tabular-nums">{l.price && l.qtyKg ? fmtCOP(base(l) + vat(l)) : "—"}</td>
                       <td className="py-2 pl-3 text-xs">
                         {others.length === 0 ? <span className="text-gray-400">—</span> : others.slice(0, 3).map((o) => (
                           <span key={o.supplierId} className="block">Comparar con {shortSupplierName(o.supplier)}: <strong>{fmtCOP(o.pricePerKg)}</strong>/kg</span>
@@ -109,9 +144,14 @@ export default async function QuotePage({ params }: { params: Promise<{ id: stri
                     </tr>
                   );
                 })}
-                {lines.length === 0 && <tr><td colSpan={6} className="py-3 text-center text-gray-500">Sin productos. Agrega abajo.</td></tr>}
+                {lines.length === 0 && <tr><td colSpan={7} className="py-3 text-center text-gray-500">Sin productos. Agrega abajo.</td></tr>}
               </tbody>
-              {total > 0 && <tfoot><tr><td colSpan={3} className="pt-2 text-right font-semibold">Estimado sin IVA</td><td className="pt-2 text-right font-semibold tabular-nums">{fmtCOP(total)}</td><td colSpan={2} /></tr></tfoot>}
+              {subtotal > 0 && (
+                <tfoot>
+                  {mode === "sumar" && <tr><td colSpan={mode === "sumar" ? 4 : 3} className="pt-2 text-right text-gray-500">Subtotal {fmtCOP(subtotal)} + IVA {fmtCOP(iva)}</td><td colSpan={3} /></tr>}
+                  <tr><td colSpan={mode === "sumar" ? 4 : 3} className="pt-1 text-right font-semibold">{ivaLabel[mode]} · Total&nbsp;</td><td className="pt-1 text-right font-semibold tabular-nums">{fmtCOP(total)}</td><td colSpan={2} /></tr>
+                </tfoot>
+              )}
             </table>
           </div>
 

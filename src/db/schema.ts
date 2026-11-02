@@ -32,6 +32,8 @@ export const suppliers = pgTable("suppliers", {
   nit: text("nit").unique(),
   phone: text("phone"),
   notes: text("notes"),
+  // Cómo vienen sus precios en una cotización: ninguno (no se muestra IVA) | sumar (precio sin IVA, se suma) | incluido (el precio ya trae IVA).
+  ivaMode: text("iva_mode").notNull().default("ninguno"),
 });
 
 // Insumos: materia prima a granel que se reempaca (almendra, canela, etc.).
@@ -385,11 +387,30 @@ export const quoteItems = pgTable(
     name: text("name").notNull(),
     qtyKg: qty("qty_kg").notNull().default(0),
     quoteId: integer("quote_id").references(() => quotes.id, { onDelete: "cascade" }),
-    price: money("price").notNull().default(0), // precio por kg sin IVA
+    price: money("price").notNull().default(0), // precio por kg tal como lo ofrece el proveedor
+    ivaRate: numeric("iva_rate", { precision: 5, scale: 4, mode: "number" }).notNull().default(0.19), // solo cuenta si el proveedor suma IVA
     status: text("status").notNull().default("borrador"), // borrador (por pedir) | cotizada
     createdBy: integer("created_by").references(() => users.id),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     sentAt: timestamp("sent_at", { withTimezone: true }),
   },
   (t) => [index("quote_items_supplier_idx").on(t.supplierId, t.status)],
+);
+
+// Precios de referencia de un proveedor tomados de cotizaciones o facturas anteriores (fuera de las compras cargadas).
+export const supplierPrices = pgTable(
+  "supplier_prices",
+  {
+    id: serial("id").primaryKey(),
+    supplierId: integer("supplier_id").notNull().references(() => suppliers.id, { onDelete: "cascade" }),
+    rawMaterialId: integer("raw_material_id").references(() => rawMaterials.id),
+    description: text("description").notNull(),
+    unitPrice: money("unit_price").notNull(), // por unidad como la vende (caja, bulto, bolsa…)
+    packKg: qty("pack_kg"), // kilos que trae esa unidad; null si no se vende por peso
+    pricePerKg: money("price_per_kg"),
+    priceDate: date("price_date", { mode: "string" }).notNull(),
+    source: text("source").notNull(), // p. ej. ref-008429 o foto
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [index("supplier_prices_raw_idx").on(t.rawMaterialId)],
 );
