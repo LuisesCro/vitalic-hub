@@ -208,16 +208,17 @@ let ready: Promise<void> | null = null;
 /** Una vez por servidor; si falla, se reintenta en la siguiente visita. */
 export function ensureSchema(): Promise<void> {
   ready ??= (async () => {
-    if (await upToDate()) return;
-    await db.transaction(async (tx) => {
-      // Nunca quedarse esperando: si algo tiene la tabla ocupada, falla rápido y se reintenta luego.
-      await tx.execute(sql`set local lock_timeout = '4s'`);
-      await tx.execute(sql`set local statement_timeout = '15s'`);
-      // El candado evita que dos servidores que arrancan a la vez choquen al crear tablas.
-      await tx.execute(sql`select pg_advisory_xact_lock(732451)`);
-      for (const statement of STATEMENTS) await tx.execute(statement);
-    });
-    // Datos de referencia (una sola vez); si falla no debe tumbar la aplicación.
+    if (!(await upToDate())) {
+      await db.transaction(async (tx) => {
+        // Nunca quedarse esperando: si algo tiene la tabla ocupada, falla rápido y se reintenta luego.
+        await tx.execute(sql`set local lock_timeout = '4s'`);
+        await tx.execute(sql`set local statement_timeout = '15s'`);
+        // El candado evita que dos servidores que arrancan a la vez choquen al crear tablas.
+        await tx.execute(sql`select pg_advisory_xact_lock(732451)`);
+        for (const statement of STATEMENTS) await tx.execute(statement);
+      });
+    }
+    // Datos de referencia (cada documento se carga una sola vez); si falla no debe tumbar la aplicación.
     try {
       const { loadReferencePrices } = await import("./reference-prices");
       await loadReferencePrices();

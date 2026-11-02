@@ -9,11 +9,10 @@ import { normalize } from "@/lib/units";
  * mientras no haya compras más recientes. Cada línea: descripción, cantidad, precio por unidad, kilos que trae la
  * unidad (null si no se vende por peso) e insumo del HUB al que corresponde. Suma exacta de la factura: $15.248.700.
  */
-const SOURCE = "ref-008429";
-const DATE = "2025-10-30";
-
 type Row = [description: string, qty: number, unitPrice: number, kg: number | null, raw: string | null];
-const ROWS: Row[] = [
+type Dataset = { source: string; supplierLike: string; date: string; total: number; rows: Row[] };
+
+const INSALPRO_008429: Row[] = [
   ["ACEITE DE OLIVA ANDALUZ 500 ML", 6, 28000, null, "Aceite de Oliva - extra virgen ANDALUZ"],
   ["ACEITE DE OLIVA PURO ANDALUZ X 1 LT", 6, 50000, null, "Aceite de Oliva - extra virgen ANDALUZ"],
   ["ACEITE DE COCO X 250 ML", 6, 17000, null, "Aceite de Coco"],
@@ -93,26 +92,58 @@ const ROWS: Row[] = [
   ["ALMENDRAS ENTERAS X 1 KL", 20, 40000, 1, "Almendra"],
 ];
 
-/** Carga una sola vez los precios de referencia de Insalpro. Si el proveedor no existe o ya se cargó, no hace nada. */
+/**
+ * Factura JCSC 5395 de Comercial Santa Inés (3 de junio de 2026): todo se vende por kilo, con IVA aparte (19 %; 0 % en cebolla y ajo en polvo).
+ * Los precios son sin IVA. Suma de la factura: $3.783.803 sin IVA (redondeos de $1).
+ */
+const SANTA_INES_5395: Row[] = [
+  ["TE VERDE ENTERO", 5, 16806.72, 1, "Te verde"],
+  ["MORINGA MOLIDA", 5, 20168.07, 1, "Moringa molida"],
+  ["MACA", 10, 35000, 1, "Maca en polvo"],
+  ["FLOR DE JAMAICA", 25, 21008.4, 1, "Flor de Jamaica"],
+  ["ANIS ESTRELLA PREMIUM", 10, 33613.45, 1, "Anis estrellado"],
+  ["CEBOLLA POLVO M", 5, 16500, 1, "Cebolla en polvo"],
+  ["AJO POLVO X KG", 5, 11000, 1, "Ajo en polvo"],
+  ["COMINO ENTERO", 10, 14285.71, 1, "Comino grano"],
+  ["COMINO MOLIDO A", 10, 15126.05, 1, "Comino molido"],
+  ["OREGANO ENTERO X KG", 5, 13445.38, 1, null],
+  ["PIMIENTA NEGRA MOLIDA X KG", 20, 42000, 1, "Pimienta negra molida"],
+  ["CLAVO DE OLOR MOLIDO X KG", 5, 25210.08, 1, "Clavos molidos"],
+  ["SEMILLA DE AJONJOLI NEGRO", 10, 21008.4, 1, "Semilla de ajonjolí negro"],
+  ["PIMIENTA NEGRA ENTERA X KG", 5, 40000, 1, "Pimienta negra en grano"],
+  ["CURRY X KG", 5, 12605.04, 1, "Curry molido"],
+  ["FINAS HIERBAS", 10, 13445.38, 1, "Hierbas finas enteras"],
+  ["CURCUMA POLVO I-1", 25, 12605.04, 1, "Curcuma molida"],
+];
+
+const DATASETS: Dataset[] = [
+  { source: "ref-008429", supplierLike: "%insalpro%", date: "2025-10-30", total: 15248700, rows: INSALPRO_008429 },
+  { source: "ref-jcsc-5395", supplierLike: "%santa in%", date: "2026-06-03", total: 3783803, rows: SANTA_INES_5395 },
+];
+
+/** Suma de cada documento de referencia (para comprobar que se transcribió completo). */
+export const REFERENCE_TOTALS = DATASETS.map((d) => ({ source: d.source, expected: d.total, sum: Math.round(d.rows.reduce((t, r) => t + r[1] * r[2], 0)) }));
+
+/** Carga una sola vez los precios de referencia de cada proveedor. Si el proveedor no existe o ya se cargó, no hace nada. */
 export async function loadReferencePrices(): Promise<void> {
-  const [supplier] = await db.select({ id: suppliers.id }).from(suppliers).where(ilike(suppliers.name, "%insalpro%")).limit(1);
-  if (!supplier) return;
-  const done = await db.select({ id: supplierPrices.id }).from(supplierPrices).where(eq(supplierPrices.source, SOURCE)).limit(1);
-  if (done.length) return;
   const materials = await db.select({ id: rawMaterials.id, name: rawMaterials.name }).from(rawMaterials);
   const byName = new Map(materials.map((m) => [normalize(m.name), m.id]));
-  await db.insert(supplierPrices).values(
-    ROWS.map(([description, , unitPrice, kg, raw]) => ({
-      supplierId: supplier.id,
-      rawMaterialId: raw ? byName.get(normalize(raw)) ?? null : null,
-      description,
-      unitPrice,
-      packKg: kg,
-      pricePerKg: kg ? Math.round(unitPrice / kg) : null,
-      priceDate: DATE,
-      source: SOURCE,
-    })),
-  );
+  for (const d of DATASETS) {
+    const [supplier] = await db.select({ id: suppliers.id }).from(suppliers).where(ilike(suppliers.name, d.supplierLike)).limit(1);
+    if (!supplier) continue;
+    const done = await db.select({ id: supplierPrices.id }).from(supplierPrices).where(eq(supplierPrices.source, d.source)).limit(1);
+    if (done.length) continue;
+    await db.insert(supplierPrices).values(
+      d.rows.map(([description, , unitPrice, kg, raw]) => ({
+        supplierId: supplier.id,
+        rawMaterialId: raw ? byName.get(normalize(raw)) ?? null : null,
+        description,
+        unitPrice,
+        packKg: kg,
+        pricePerKg: kg ? Math.round(unitPrice / kg) : null,
+        priceDate: d.date,
+        source: d.source,
+      })),
+    );
+  }
 }
-
-export const REFERENCE_TOTAL = ROWS.reduce((t, r) => t + r[1] * r[2], 0);
