@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   IconAlert, IconBag, IconBox, IconLayers, IconScale, IconCart, IconCash, IconChart, IconHome, IconKey, IconLeaf, IconLogout, IconMenu, IconReceipt,
-  IconSettings, IconTag, IconUpload, IconX, BrandLogo,
+  IconSettings, IconTag, IconUpload, IconUsers, IconX, BrandLogo,
 } from "./icons";
 
 type Item = { href: string; label: string; icon: (p: { className?: string }) => React.ReactNode; hint?: string };
@@ -29,6 +29,7 @@ const ADMIN: Group[] = [
   {
     title: "Negocio",
     items: [
+      { href: "/proveedores", label: "Proveedores", icon: IconUsers, hint: "Quién nos vende y cuánto se debe" },
       { href: "/catalogo", label: "Catálogo", icon: IconLayers, hint: "Productos, presentaciones y recetas" },
       { href: "/precios", label: "Precios", icon: IconTag, hint: "Competencia y márgenes" },
       { href: "/productos", label: "Productos", icon: IconLeaf, hint: "Qué vende y cuánto deja" },
