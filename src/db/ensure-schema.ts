@@ -218,6 +218,16 @@ export function ensureSchema(): Promise<void> {
         for (const statement of STATEMENTS) await tx.execute(statement);
       });
     }
+    // Las cotizaciones ya no tienen IVA por defecto: se limpia una sola vez el 19 % que se había puesto solo.
+    try {
+      const done = await db.execute(sql`select 1 from settings where key = 'migr_cot_iva'`);
+      if (done.length === 0) {
+        await db.execute(sql`update quote_items set iva_rate = 0`);
+        await db.execute(sql`insert into settings (key, value) values ('migr_cot_iva', '1') on conflict do nothing`);
+      }
+    } catch (error) {
+      console.error("No se pudo limpiar el IVA de las cotizaciones", error);
+    }
     // Datos de referencia (cada documento se carga una sola vez); si falla no debe tumbar la aplicación.
     try {
       const { loadReferencePrices } = await import("./reference-prices");

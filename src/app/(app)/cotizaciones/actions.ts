@@ -4,7 +4,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
-import { quoteItems, quotes, rawMaterials, supplierPrices, suppliers } from "@/db/schema";
+import { quoteItems, quotes, rawMaterials, supplierPrices } from "@/db/schema";
 import { readInvoiceWithAI } from "@/lib/ai-invoice";
 import { todayISO } from "@/lib/format";
 import { matchRawMaterial } from "@/lib/matching";
@@ -20,11 +20,11 @@ const refresh = (id?: number) => {
   revalidatePath("/por-pedir");
 };
 
-/** Precio por kilo con el que se compró la última vez a este proveedor (0 si nunca). */
-async function lastPriceFrom(supplierId: number, rawId: number | null): Promise<number> {
-  if (!rawId) return 0;
-  const prices = (await lastKgPrices([rawId])).get(rawId) ?? [];
-  return prices.find((p) => p.supplierId === supplierId)?.pricePerKg ?? 0;
+/** Último precio por kilo (y su IVA) con el que se compró a este proveedor; ceros si nunca. */
+async function lastPriceFrom(supplierId: number, rawId: number | null): Promise<{ price: number; iva: number }> {
+  if (!rawId) return { price: 0, iva: 0 };
+  const own = ((await lastKgPrices([rawId])).get(rawId) ?? []).find((p) => p.supplierId === supplierId);
+  return { price: own?.pricePerKg ?? 0, iva: own?.taxRate ?? 0 };
 }
 
 /** Convierte lo que está por pedir a un proveedor en una cotización con número y fecha. */
@@ -37,8 +37,8 @@ export async function generateQuote(formData: FormData) {
   const history = await lastKgPrices(raws);
   const [quote] = await db.insert(quotes).values({ supplierId, createdBy: session.userId }).returning({ id: quotes.id });
   for (const it of items) {
-    const price = it.rawMaterialId ? (history.get(it.rawMaterialId) ?? []).find((p) => p.supplierId === supplierId)?.pricePerKg ?? 0 : 0;
-    await db.update(quoteItems).set({ quoteId: quote.id, status: "cotizada", price }).where(eq(quoteItems.id, it.id));
+    const own = it.rawMaterialId ? (history.get(it.rawMaterialId) ?? []).find((p) => p.supplierId === supplierId) : undefined;
+    await db.update(quoteItems).set({ quoteId: quote.id, status: "cotizada", price: own?.pricePerKg ?? 0, ivaRate: own?.taxRate ?? 0 }).where(eq(quoteItems.id, it.id));
   }
   refresh();
   redirect(`/cotizaciones/${quote.id}`);
@@ -75,9 +75,10 @@ export async function addQuoteLine(formData: FormData) {
     name = m?.name ?? name;
   }
   if (!name) return;
+  const last = await lastPriceFrom(quote.supplierId, rawMaterialId);
   await db.insert(quoteItems).values({
     supplierId: quote.supplierId, rawMaterialId, name, qtyKg: kgNum(formData.get("qtyKg")), quoteId, status: "cotizada",
-    price: await lastPriceFrom(quote.supplierId, rawMaterialId), createdBy: session.userId,
+    price: last.price, ivaRate: last.iva, createdBy: session.userId,
   });
   refresh(quoteId);
 }
@@ -102,15 +103,6 @@ export async function deleteQuote(formData: FormData) {
   await db.delete(quotes).where(eq(quotes.id, Number(formData.get("id"))));
   refresh();
   redirect("/cotizaciones");
-}
-
-/** Cómo vienen los precios de este proveedor: sin mostrar IVA, sumándolo, o ya con IVA incluido. No toca el IVA de los productos de Vitalic. */
-export async function setSupplierIvaMode(formData: FormData) {
-  await requireAdmin();
-  const mode = String(formData.get("mode"));
-  if (mode !== "ninguno" && mode !== "sumar" && mode !== "incluido") return;
-  await db.update(suppliers).set({ ivaMode: mode }).where(eq(suppliers.id, Number(formData.get("supplierId"))));
-  refresh(Number(formData.get("quoteId")) || undefined);
 }
 
 export type RefState = { ok?: string; error?: string };
@@ -164,7 +156,7 @@ export async function fillQuotePrices(formData: FormData) {
   for (const l of lines) {
     if (l.price > 0 || !l.rawMaterialId) continue;
     const own = (history.get(l.rawMaterialId) ?? []).find((p) => p.supplierId === quote.supplierId);
-    if (own) await db.update(quoteItems).set({ price: own.pricePerKg }).where(eq(quoteItems.id, l.id));
+    if (own) await db.update(quoteItems).set({ price: own.pricePerKg, ivaRate: own.taxRate }).where(eq(quoteItems.id, l.id));
   }
   refresh(quoteId);
 }
@@ -179,7 +171,8 @@ export async function linkQuoteLine(formData: FormData) {
   const [quote] = line?.quoteId ? await db.select().from(quotes).where(eq(quotes.id, line.quoteId)) : [];
   if (!line || !quote) return;
   const [m] = await db.select({ name: rawMaterials.name }).from(rawMaterials).where(eq(rawMaterials.id, rawMaterialId));
-  await db.update(quoteItems).set({ rawMaterialId, name: m?.name ?? line.name, price: line.price > 0 ? line.price : await lastPriceFrom(quote.supplierId, rawMaterialId) }).where(eq(quoteItems.id, id));
+  const last = await lastPriceFrom(quote.supplierId, rawMaterialId);
+  await db.update(quoteItems).set({ rawMaterialId, name: m?.name ?? line.name, price: line.price > 0 ? line.price : last.price, ...(line.price > 0 ? {} : { ivaRate: last.iva }) }).where(eq(quoteItems.id, id));
   refresh(quote.id);
 }
 

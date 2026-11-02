@@ -8,6 +8,8 @@ export type KgPrice = {
   supplierId: number; supplier: string; pricePerKg: number; date: string | null; reference?: boolean;
   /** Cómo lo vende ese proveedor: precio por unidad (caja, bulto…), kilos que trae y tipo de empaque. */
   unitPrice: number; packKg: number | null; kind: PackKind;
+  /** IVA con el que facturó ese proveedor (0,19); 0 si no cobró o no se sabe. */
+  taxRate: number;
 };
 
 /** "MANIMAX PALMIRA SAS" → "Manimax"; "JUAN CARLOS … (COMERCIAL SANTA INÉS)" → "Comercial Santa Inés". */
@@ -24,7 +26,7 @@ export async function lastKgPrices(rawIds: number[]): Promise<Map<number, KgPric
   const rows = await db
     .select({
       raw: purchaseLines.rawMaterialId, supplierId: purchases.supplierId, supplier: suppliers.name, date: purchases.issueDate,
-      total: purchaseLines.lineTotal, qty: purchaseLines.quantity, kgPer: purchaseLines.kgPerUnit, description: purchaseLines.description, unit: purchaseLines.unit,
+      total: purchaseLines.lineTotal, qty: purchaseLines.quantity, kgPer: purchaseLines.kgPerUnit, description: purchaseLines.description, unit: purchaseLines.unit, tax: purchaseLines.taxRate,
     })
     .from(purchaseLines)
     .innerJoin(purchases, eq(purchases.id, purchaseLines.purchaseId))
@@ -36,7 +38,7 @@ export async function lastKgPrices(rawIds: number[]): Promise<Map<number, KgPric
     if (!r.raw || !r.supplierId || !(r.kgPer && r.kgPer > 0) || !(r.qty > 0) || !(r.total > 0)) continue;
     entries.push({
       raw: r.raw, supplierId: r.supplierId, supplier: r.supplier, pricePerKg: Math.round(r.total / (r.qty * r.kgPer)), date: r.date,
-      unitPrice: Math.round(r.total / r.qty), packKg: r.kgPer, kind: packLabel(r.description, r.unit, r.kgPer),
+      unitPrice: Math.round(r.total / r.qty), packKg: r.kgPer, kind: packLabel(r.description, r.unit, r.kgPer), taxRate: r.tax ?? 0,
     });
   }
   // Precios de referencia (cotizaciones o facturas anteriores): solo ganan si son más recientes que las compras cargadas.
@@ -50,7 +52,7 @@ export async function lastKgPrices(rawIds: number[]): Promise<Map<number, KgPric
     if (!r.raw || !r.price) continue;
     entries.push({
       raw: r.raw, supplierId: r.supplierId, supplier: r.supplier, pricePerKg: r.price, date: r.date, reference: true,
-      unitPrice: r.unitPrice, packKg: r.packKg, kind: packLabel(r.description, null, r.packKg),
+      unitPrice: r.unitPrice, packKg: r.packKg, kind: packLabel(r.description, null, r.packKg), taxRate: 0,
     });
   }
   // Más reciente primero; a igual fecha, la compra real antes que la referencia.
