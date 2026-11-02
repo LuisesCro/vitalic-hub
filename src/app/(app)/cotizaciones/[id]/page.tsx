@@ -8,7 +8,8 @@ import { BUSINESS } from "@/lib/business";
 import { fmtCOP } from "@/lib/format";
 import { requireAdmin } from "@/lib/session";
 import { lastKgPrices, shortSupplierName } from "@/lib/supplier-prices";
-import { addQuoteLine, deleteQuote, removeQuoteLine, saveQuoteLine, saveQuoteNote, setQuoteStatus, setSupplierIvaMode } from "../actions";
+import { addQuoteLine, deleteQuote, fillQuotePrices, linkQuoteLine, removeQuoteLine, saveQuoteLine, saveQuoteNote, setQuoteQty, setQuoteStatus, setSupplierIvaMode } from "../actions";
+import { kindPlural, packRecommendation } from "@/lib/pack";
 import { PrintQuote } from "./print-button";
 
 export const metadata = { title: "Cotización · Vitalic Hub" };
@@ -31,6 +32,17 @@ export default async function QuotePage({ params }: { params: Promise<{ id: stri
   const iva = lines.reduce((t, l) => t + vat(l), 0);
   const total = subtotal + iva;
   const number = `COT-${q.id}`;
+  const ownOf = (l: { rawMaterialId: number | null }) => (l.rawMaterialId ? (history.get(l.rawMaterialId) ?? []).find((p) => p.supplierId === q.supplierId) : undefined);
+  /** Texto de cantidad para el documento: "2 cajas · 20 kg" si son cajas o bultos completos. */
+  const qtyText = (l: { rawMaterialId: number | null; qtyKg: number }) => {
+    if (!l.qtyKg) return "";
+    const o = ownOf(l);
+    if (o && o.packKg && o.kind !== "kilo") {
+      const n = l.qtyKg / o.packKg;
+      if (Math.abs(n - Math.round(n)) < 0.01 && Math.round(n) >= 1) return `${Math.round(n)} ${Math.round(n) === 1 ? o.kind : kindPlural(o.kind)} · ${l.qtyKg.toLocaleString("es-CO")} kg`;
+    }
+    return `${l.qtyKg.toLocaleString("es-CO")} kg`;
+  };
   const ivaLabel = { ninguno: "Sin IVA", sumar: "Se suma IVA", incluido: "IVA incluido" } as const;
 
   return (
@@ -39,6 +51,7 @@ export default async function QuotePage({ params }: { params: Promise<{ id: stri
         <Link href="/cotizaciones" className="btn-secondary">← Cotizaciones</Link>
         <div className="flex flex-wrap gap-2">
           <PrintQuote />
+          <form action={fillQuotePrices}><input type="hidden" name="quoteId" value={q.id} /><button className="btn-secondary" title="Pone el último precio de este proveedor en los renglones que no tienen">Completar precios</button></form>
           <form action={setQuoteStatus}>
             <input type="hidden" name="id" value={q.id} />
             <input type="hidden" name="status" value={q.status === "enviada" ? "borrador" : "enviada"} />
@@ -90,8 +103,8 @@ export default async function QuotePage({ params }: { params: Promise<{ id: stri
           <tbody>
             {lines.map((l, i) => (
               <tr key={l.id} className="border-b border-black/20">
-                <td className="py-1">{i + 1}</td><td>{l.name}</td>
-                <td className="text-right">{l.qtyKg ? `${l.qtyKg.toLocaleString("es-CO")} kg` : ""}</td>
+                <td className="py-1">{i + 1}</td><td>{l.name}{(() => { const o = ownOf(l); return o && o.packKg && o.kind !== "kilo" ? <span className="text-xs text-gray-500"> ({o.kind} de {o.packKg.toLocaleString("es-CO")} kg)</span> : null; })()}</td>
+                <td className="text-right">{qtyText(l)}</td>
                 <td className="text-right">{l.price ? fmtCOP(l.price) : ""}</td>
                 {mode === "sumar" && <td className="text-right">{l.price ? `${Math.round(l.ivaRate * 100)} %` : ""}</td>}
                 <td className="text-right">{l.price && l.qtyKg ? fmtCOP(base(l) + vat(l)) : ""}</td>
@@ -112,15 +125,29 @@ export default async function QuotePage({ params }: { params: Promise<{ id: stri
         <div className="print:hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead><tr className="border-b text-left text-xs text-gray-500"><th className="py-1">Producto</th><th>Cantidad (kg)</th><th>Precio por kg{mode === "sumar" ? " (sin IVA)" : ""}</th>{mode === "sumar" && <th>IVA</th>}<th className="text-right">Total</th><th className="pl-3">Comparar</th><th /></tr></thead>
+              <thead><tr className="border-b text-left text-xs text-gray-500"><th className="py-1">Producto</th><th>Cantidad (kg)</th><th>Precio por kg{mode === "sumar" ? " (sin IVA)" : ""}</th>{mode === "sumar" && <th>IVA</th>}<th className="text-right">Total</th><th className="pl-3">Presentación del proveedor</th><th className="pl-3">Comparar</th><th /></tr></thead>
               <tbody>
                 {lines.map((l) => {
                   const prices = l.rawMaterialId ? history.get(l.rawMaterialId) ?? [] : [];
                   const own = prices.find((p) => p.supplierId === q.supplierId);
+                  const rec = own ? packRecommendation(l.qtyKg, own.packKg, own.kind) : null;
                   const others = prices.filter((p) => p.supplierId !== q.supplierId);
                   return (
                     <tr key={l.id} className="border-b align-top">
-                      <td className="py-2 pr-2 font-medium">{l.name}{own && <span className="block text-xs font-normal text-gray-500">{own.reference ? "Referencia" : "Última compra"} aquí: {fmtCOP(own.pricePerKg)}/kg · {own.date}</span>}</td>
+                      <td className="py-2 pr-2 font-medium">{l.name}
+                        {own && <span className="block text-xs font-normal text-gray-500">{own.reference ? "Referencia" : "Última compra"} aquí: {fmtCOP(own.pricePerKg)}/kg · {own.date}</span>}
+                        {!l.rawMaterialId && (
+                          <form action={linkQuoteLine} className="mt-1 flex items-center gap-1 font-normal">
+                            <input type="hidden" name="id" value={l.id} />
+                            <select name="rawMaterialId" required defaultValue="" className="input !py-0.5 text-xs w-40" aria-label="Enlazar con un insumo">
+                              <option value="" disabled>Sin insumo: enlazar…</option>
+                              {materials.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+                            </select>
+                            <button className="text-xs underline">Enlazar</button>
+                          </form>
+                        )}
+                        {l.rawMaterialId && !own && <span className="block text-xs font-normal text-gray-400">Sin precio de este proveedor en tus facturas ni referencias</span>}
+                      </td>
                       <td colSpan={mode === "sumar" ? 3 : 2} className="py-1">
                         <form action={saveQuoteLine} className="flex flex-wrap items-center gap-1">
                           <input type="hidden" name="id" value={l.id} />
@@ -136,6 +163,20 @@ export default async function QuotePage({ params }: { params: Promise<{ id: stri
                       </td>
                       <td className="py-2 text-right tabular-nums">{l.price && l.qtyKg ? fmtCOP(base(l) + vat(l)) : "—"}</td>
                       <td className="py-2 pl-3 text-xs">
+                        {own && own.packKg && own.kind !== "kilo" ? (
+                          <>
+                            <span className="block font-medium">{own.kind[0].toUpperCase() + own.kind.slice(1)} de {own.packKg.toLocaleString("es-CO")} kg · {fmtCOP(own.unitPrice)} c/u</span>
+                            {rec && !rec.exact && (
+                              <form action={setQuoteQty} className="mt-0.5">
+                                <input type="hidden" name="id" value={l.id} /><input type="hidden" name="qtyKg" value={rec.totalKg} />
+                                <button className="underline">Pedir {rec.text}</button>
+                              </form>
+                            )}
+                            {rec && rec.exact && <span className="text-gray-500">✓ {rec.text}</span>}
+                          </>
+                        ) : own ? <span className="text-gray-500">Por kilo</span> : <span className="text-gray-400">—</span>}
+                      </td>
+                      <td className="py-2 pl-3 text-xs">
                         {others.length === 0 ? <span className="text-gray-400">—</span> : others.slice(0, 3).map((o) => (
                           <span key={o.supplierId} className="block">Comparar con {shortSupplierName(o.supplier)}: <strong>{fmtCOP(o.pricePerKg)}</strong>/kg</span>
                         ))}
@@ -144,12 +185,12 @@ export default async function QuotePage({ params }: { params: Promise<{ id: stri
                     </tr>
                   );
                 })}
-                {lines.length === 0 && <tr><td colSpan={7} className="py-3 text-center text-gray-500">Sin productos. Agrega abajo.</td></tr>}
+                {lines.length === 0 && <tr><td colSpan={8} className="py-3 text-center text-gray-500">Sin productos. Agrega abajo.</td></tr>}
               </tbody>
               {subtotal > 0 && (
                 <tfoot>
-                  {mode === "sumar" && <tr><td colSpan={mode === "sumar" ? 4 : 3} className="pt-2 text-right text-gray-500">Subtotal {fmtCOP(subtotal)} + IVA {fmtCOP(iva)}</td><td colSpan={3} /></tr>}
-                  <tr><td colSpan={mode === "sumar" ? 4 : 3} className="pt-1 text-right font-semibold">{ivaLabel[mode]} · Total&nbsp;</td><td className="pt-1 text-right font-semibold tabular-nums">{fmtCOP(total)}</td><td colSpan={2} /></tr>
+                  {mode === "sumar" && <tr><td colSpan={mode === "sumar" ? 4 : 3} className="pt-2 text-right text-gray-500">Subtotal {fmtCOP(subtotal)} + IVA {fmtCOP(iva)}</td><td colSpan={4} /></tr>}
+                  <tr><td colSpan={mode === "sumar" ? 4 : 3} className="pt-1 text-right font-semibold">{ivaLabel[mode]} · Total&nbsp;</td><td className="pt-1 text-right font-semibold tabular-nums">{fmtCOP(total)}</td><td colSpan={3} /></tr>
                 </tfoot>
               )}
             </table>

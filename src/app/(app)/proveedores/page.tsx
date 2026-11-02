@@ -55,7 +55,10 @@ export default async function ProveedoresPage() {
                 <h2 className="font-semibold leading-tight">{s.name}</h2>
                 <p className="text-xs text-muted">{s.nit ? `NIT ${s.nit}` : "Sin NIT"}{s.phone ? ` · ${s.phone}` : ""}</p>
               </div>
-              <Link href={`/compras?proveedor=${s.id}`} className="btn-secondary shrink-0 text-sm">Ver facturas</Link>
+              <div className="flex shrink-0 flex-col gap-1.5">
+                <Link href={`/compras?proveedor=${s.id}`} className="btn-secondary text-center text-sm">Ver facturas</Link>
+                <Link href={`/proveedores/${s.id}/productos`} className="btn-secondary text-center text-sm">Lista de productos</Link>
+              </div>
             </div>
             <dl className="grid grid-cols-2 gap-2 text-sm">
               <div><dt className="text-xs text-muted">Comprado</dt><dd className="font-semibold tabular-nums">{fmtCOP(bought)}</dd></div>

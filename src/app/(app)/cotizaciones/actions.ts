@@ -152,3 +152,40 @@ export async function uploadReferencePrices(_prev: RefState, formData: FormData)
   const matched = rows.filter((r) => r.rawMaterialId && r.pricePerKg).length;
   return { ok: `Guardé ${rows.length} precios con fecha ${date}; ${matched} quedaron enlazados a tus insumos y se usarán en las cotizaciones.` };
 }
+
+/** Pone en cada renglón sin precio el último precio de ese proveedor (compra o referencia). */
+export async function fillQuotePrices(formData: FormData) {
+  await requireAdmin();
+  const quoteId = Number(formData.get("quoteId"));
+  const [quote] = await db.select().from(quotes).where(eq(quotes.id, quoteId));
+  if (!quote) return;
+  const lines = await db.select().from(quoteItems).where(eq(quoteItems.quoteId, quoteId));
+  const history = await lastKgPrices(lines.map((l) => l.rawMaterialId).filter((x): x is number => x !== null));
+  for (const l of lines) {
+    if (l.price > 0 || !l.rawMaterialId) continue;
+    const own = (history.get(l.rawMaterialId) ?? []).find((p) => p.supplierId === quote.supplierId);
+    if (own) await db.update(quoteItems).set({ price: own.pricePerKg }).where(eq(quoteItems.id, l.id));
+  }
+  refresh(quoteId);
+}
+
+/** Enlaza un renglón escrito a mano con un insumo, para que traiga su precio y su comparación. */
+export async function linkQuoteLine(formData: FormData) {
+  await requireAdmin();
+  const id = Number(formData.get("id"));
+  const rawMaterialId = Number(formData.get("rawMaterialId"));
+  if (!rawMaterialId) return;
+  const [line] = await db.select().from(quoteItems).where(eq(quoteItems.id, id));
+  const [quote] = line?.quoteId ? await db.select().from(quotes).where(eq(quotes.id, line.quoteId)) : [];
+  if (!line || !quote) return;
+  const [m] = await db.select({ name: rawMaterials.name }).from(rawMaterials).where(eq(rawMaterials.id, rawMaterialId));
+  await db.update(quoteItems).set({ rawMaterialId, name: m?.name ?? line.name, price: line.price > 0 ? line.price : await lastPriceFrom(quote.supplierId, rawMaterialId) }).where(eq(quoteItems.id, id));
+  refresh(quote.id);
+}
+
+/** Cambia solo los kilos de un renglón (por ejemplo, a cajas o bultos completos). */
+export async function setQuoteQty(formData: FormData) {
+  await requireAdmin();
+  const [line] = await db.update(quoteItems).set({ qtyKg: kgNum(formData.get("qtyKg")) }).where(eq(quoteItems.id, Number(formData.get("id")))).returning({ quoteId: quoteItems.quoteId });
+  refresh(line?.quoteId ?? undefined);
+}
