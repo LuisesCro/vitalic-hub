@@ -1,10 +1,12 @@
 "use server";
 
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
-import { suppliers } from "@/db/schema";
+import { quoteItems, rawMaterials, suppliers } from "@/db/schema";
 import { requireAdmin } from "@/lib/session";
+
+const num = (v: FormDataEntryValue | null) => Number(String(v ?? "").replace(",", ".")) || 0;
 
 export type SupplierState = { ok?: string; error?: string };
 
@@ -25,4 +27,48 @@ export async function saveSupplier(_prev: SupplierState, formData: FormData): Pr
   }
   revalidatePath("/proveedores");
   return { ok: id ? "Proveedor actualizado" : `${name} quedó agregado` };
+}
+
+const refresh = () => {
+  revalidatePath("/proveedores");
+  revalidatePath("/por-pedir");
+};
+
+/** Agrega un producto a la cotización de un proveedor (si ya estaba, le actualiza la cantidad). */
+export async function addToQuote(formData: FormData) {
+  const session = await requireAdmin();
+  const supplierId = Number(formData.get("supplierId"));
+  const rawMaterialId = Number(formData.get("rawMaterialId")) || null;
+  const qtyKg = num(formData.get("qtyKg"));
+  let name = String(formData.get("name") ?? "").trim();
+  if (!supplierId) return;
+  if (rawMaterialId) {
+    const [m] = await db.select({ name: rawMaterials.name }).from(rawMaterials).where(eq(rawMaterials.id, rawMaterialId));
+    name = m?.name ?? name;
+  }
+  if (!name) return;
+  const open = and(eq(quoteItems.supplierId, supplierId), eq(quoteItems.status, "borrador"));
+  const existing = (await db.select().from(quoteItems).where(open)).find((q) => (rawMaterialId ? q.rawMaterialId === rawMaterialId : q.name.toLowerCase() === name.toLowerCase()));
+  if (existing) await db.update(quoteItems).set({ qtyKg }).where(eq(quoteItems.id, existing.id));
+  else await db.insert(quoteItems).values({ supplierId, rawMaterialId, name, qtyKg, createdBy: session.userId });
+  refresh();
+}
+
+export async function updateQuoteItem(formData: FormData) {
+  await requireAdmin();
+  await db.update(quoteItems).set({ qtyKg: num(formData.get("qtyKg")) }).where(eq(quoteItems.id, Number(formData.get("id"))));
+  refresh();
+}
+
+export async function removeQuoteItem(formData: FormData) {
+  await requireAdmin();
+  await db.delete(quoteItems).where(eq(quoteItems.id, Number(formData.get("id"))));
+  refresh();
+}
+
+/** La cotización ya se mandó: sus productos salen de la lista pendiente. */
+export async function markQuoteSent(formData: FormData) {
+  await requireAdmin();
+  await db.update(quoteItems).set({ status: "enviada", sentAt: new Date() }).where(and(eq(quoteItems.supplierId, Number(formData.get("supplierId"))), eq(quoteItems.status, "borrador")));
+  refresh();
 }

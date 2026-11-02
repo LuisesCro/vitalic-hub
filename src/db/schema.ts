@@ -363,3 +363,20 @@ export const restockRequests = pgTable(
   },
   (t) => [index("restock_requests_status_idx").on(t.status)],
 );
+
+// Lista de productos que se le van a pedir (cotizar) a cada proveedor.
+export const quoteItems = pgTable(
+  "quote_items",
+  {
+    id: serial("id").primaryKey(),
+    supplierId: integer("supplier_id").notNull().references(() => suppliers.id, { onDelete: "cascade" }),
+    rawMaterialId: integer("raw_material_id").references(() => rawMaterials.id),
+    name: text("name").notNull(),
+    qtyKg: qty("qty_kg").notNull().default(0),
+    status: text("status").notNull().default("borrador"), // borrador | enviada
+    createdBy: integer("created_by").references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+  },
+  (t) => [index("quote_items_supplier_idx").on(t.supplierId, t.status)],
+);

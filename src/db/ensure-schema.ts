@@ -105,6 +105,19 @@ const STATEMENTS = [
     "ordered_at" timestamp with time zone
   )`,
   sql`CREATE INDEX IF NOT EXISTS "restock_requests_status_idx" ON "restock_requests" ("status")`,
+  // 0013_cotizaciones
+  sql`CREATE TABLE IF NOT EXISTS "quote_items" (
+    "id" serial PRIMARY KEY NOT NULL,
+    "supplier_id" integer NOT NULL REFERENCES "suppliers"("id") ON DELETE CASCADE,
+    "raw_material_id" integer REFERENCES "raw_materials"("id"),
+    "name" text NOT NULL,
+    "qty_kg" numeric(14, 3) DEFAULT 0 NOT NULL,
+    "status" text DEFAULT 'borrador' NOT NULL,
+    "created_by" integer REFERENCES "users"("id"),
+    "created_at" timestamp with time zone DEFAULT now() NOT NULL,
+    "sent_at" timestamp with time zone
+  )`,
+  sql`CREATE INDEX IF NOT EXISTS "quote_items_supplier_idx" ON "quote_items" ("supplier_id", "status")`,
   // 0008_granel_en_caja
   sql`ALTER TABLE "bulk_sales" ADD COLUMN IF NOT EXISTS "pos_sale_id" integer`,
   // 0009_devoluciones_y_stock
@@ -156,8 +169,8 @@ async function upToDate(): Promise<boolean> {
                (table_name = 'bulk_sales' and column_name = 'pos_sale_id')))
          + (select case when exists (select 1 from products where format = 'papeleta') then 0 else 1 end)
          + (select count(*) from information_schema.tables
-             where table_schema = 'public' and table_name in ('cash_sessions', 'cash_movements', 'product_families', 'product_components', 'bulk_sales', 'supplier_payments', 'pos_sales', 'invoice_photos', 'restock_requests')) as n`);
-  return Number(rows[0]?.n) === 21;
+             where table_schema = 'public' and table_name in ('cash_sessions', 'cash_movements', 'product_families', 'product_components', 'bulk_sales', 'supplier_payments', 'pos_sales', 'invoice_photos', 'restock_requests', 'quote_items')) as n`);
+  return Number(rows[0]?.n) === 22;
 }
 
 let ready: Promise<void> | null = null;

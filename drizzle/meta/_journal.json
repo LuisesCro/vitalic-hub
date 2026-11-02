@@ -85,6 +85,13 @@
       "when": 1793289248298,
       "tag": "0011_por_pedir",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1793637014449,
+      "tag": "0012_cotizaciones",
+      "breakpoints": true
     }
   ]
 }
