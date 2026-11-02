@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { purchaseLines, purchases, quoteItems, restockRequests, suppliers, users } from "@/db/schema";
@@ -59,7 +60,7 @@ export default async function PorPedirPage() {
     const raw = rawOf(kind, id);
     if (!raw) return <span className="text-xs text-muted">Sin insumo único</span>;
     const already = inQuote.get(raw);
-    if (already) return <span className="text-xs font-medium" style={{ color: "var(--good)" }}>✓ En cotización de {supplierName.get(already)}</span>;
+    if (already) return <Link href="/cotizaciones" className="text-xs font-medium underline" style={{ color: "var(--good)" }}>✓ Por cotizar a {supplierName.get(already)}</Link>;
     return (
       <form action={addToQuote} className="flex flex-wrap items-center gap-1">
         <input type="hidden" name="rawMaterialId" value={raw} />

@@ -118,6 +118,18 @@ const STATEMENTS = [
     "sent_at" timestamp with time zone
   )`,
   sql`CREATE INDEX IF NOT EXISTS "quote_items_supplier_idx" ON "quote_items" ("supplier_id", "status")`,
+  // 0014_cotizaciones_documento
+  sql`CREATE TABLE IF NOT EXISTS "quotes" (
+    "id" serial PRIMARY KEY NOT NULL,
+    "supplier_id" integer NOT NULL REFERENCES "suppliers"("id") ON DELETE CASCADE,
+    "status" text DEFAULT 'borrador' NOT NULL,
+    "note" text,
+    "created_by" integer REFERENCES "users"("id"),
+    "created_at" timestamp with time zone DEFAULT now() NOT NULL,
+    "sent_at" timestamp with time zone
+  )`,
+  sql`ALTER TABLE "quote_items" ADD COLUMN IF NOT EXISTS "quote_id" integer REFERENCES "quotes"("id") ON DELETE CASCADE`,
+  sql`ALTER TABLE "quote_items" ADD COLUMN IF NOT EXISTS "price" numeric(14, 2) DEFAULT 0 NOT NULL`,
   // 0008_granel_en_caja
   sql`ALTER TABLE "bulk_sales" ADD COLUMN IF NOT EXISTS "pos_sale_id" integer`,
   // 0009_devoluciones_y_stock
@@ -166,11 +178,12 @@ async function upToDate(): Promise<boolean> {
                (table_name = 'pos_sales' and column_name = 'return_of') or
                (table_name = 'cash_sessions' and column_name = 'sales_breb') or
                (table_name = 'purchases' and column_name in ('payment_term', 'due_date')) or
-               (table_name = 'bulk_sales' and column_name = 'pos_sale_id')))
+               (table_name = 'bulk_sales' and column_name = 'pos_sale_id') or
+               (table_name = 'quote_items' and column_name in ('quote_id', 'price'))))
          + (select case when exists (select 1 from products where format = 'papeleta') then 0 else 1 end)
          + (select count(*) from information_schema.tables
-             where table_schema = 'public' and table_name in ('cash_sessions', 'cash_movements', 'product_families', 'product_components', 'bulk_sales', 'supplier_payments', 'pos_sales', 'invoice_photos', 'restock_requests', 'quote_items')) as n`);
-  return Number(rows[0]?.n) === 22;
+             where table_schema = 'public' and table_name in ('cash_sessions', 'cash_movements', 'product_families', 'product_components', 'bulk_sales', 'supplier_payments', 'pos_sales', 'invoice_photos', 'restock_requests', 'quote_items', 'quotes')) as n`);
+  return Number(rows[0]?.n) === 25;
 }
 
 let ready: Promise<void> | null = null;

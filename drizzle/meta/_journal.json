@@ -92,6 +92,13 @@
       "when": 1793637014449,
       "tag": "0012_cotizaciones",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1793645446761,
+      "tag": "0013_cotizaciones_documento",
+      "breakpoints": true
     }
   ]
 }

@@ -1,13 +1,12 @@
 import Link from "next/link";
 import { desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { purchaseLines, purchases, quoteItems, rawMaterials, supplierPayments, suppliers } from "@/db/schema";
+import { purchaseLines, purchases, supplierPayments, suppliers } from "@/db/schema";
 import { PageHeader, StatCard } from "@/components/ui";
 import { fmtCOP, todayISO } from "@/lib/format";
 import { payStatus } from "@/lib/payables";
 import { requireAdmin } from "@/lib/session";
 import { SupplierForm } from "./supplier-form";
-import { addToQuote, markQuoteSent, removeQuoteItem, updateQuoteItem } from "./actions";
 
 export const metadata = { title: "Proveedores · Vitalic Hub" };
 
@@ -26,8 +25,6 @@ export default async function ProveedoresPage() {
     .from(purchaseLines).innerJoin(purchases, eq(purchases.id, purchaseLines.purchaseId))
     .groupBy(purchases.supplierId, purchaseLines.description);
 
-  const drafts = await db.select().from(quoteItems).where(eq(quoteItems.status, "borrador")).orderBy(quoteItems.name);
-  const materials = await db.select({ id: rawMaterials.id, name: rawMaterials.name }).from(rawMaterials).where(eq(rawMaterials.active, true)).orderBy(rawMaterials.name);
 
   const rows = list.map((s) => {
     const mine = invoices.filter((i) => i.supplierId === s.id).map((i) => ({ ...i, ...payStatus(i.total, Number(i.paid ?? 0), i.due, today) }));
@@ -35,7 +32,7 @@ export default async function ProveedoresPage() {
     const overdue = mine.filter((i) => i.status === "vencida").reduce((t, i) => t + i.balance, 0);
     const bought = mine.reduce((t, i) => t + i.total, 0);
     const items = lines.filter((l) => l.supplierId === s.id).sort((a, b) => b.total - a.total).slice(0, 6).map((l) => l.description.toLowerCase());
-    return { s, quote: drafts.filter((d) => d.supplierId === s.id), count: mine.length, owed, overdue, bought, last: mine[0]?.date ?? null, items };
+    return { s, owed, overdue, bought, items };
   }).sort((a, b) => b.owed - a.owed || a.s.name.localeCompare(b.s.name));
 
   const totalOwed = rows.reduce((t, r) => t + r.owed, 0);
@@ -51,7 +48,7 @@ export default async function ProveedoresPage() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        {rows.map(({ s, quote, count, owed, overdue, bought, last, items }) => (
+        {rows.map(({ s, owed, overdue, bought, items }) => (
           <section key={s.id} className="card space-y-3">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
@@ -60,51 +57,12 @@ export default async function ProveedoresPage() {
               </div>
               <Link href={`/compras?proveedor=${s.id}`} className="btn-secondary shrink-0 text-sm">Ver facturas</Link>
             </div>
-            <dl className="grid grid-cols-3 gap-2 text-sm">
+            <dl className="grid grid-cols-2 gap-2 text-sm">
               <div><dt className="text-xs text-muted">Comprado</dt><dd className="font-semibold tabular-nums">{fmtCOP(bought)}</dd></div>
               <div><dt className="text-xs text-muted">Se les debe</dt><dd className="font-semibold tabular-nums" style={owed ? { color: overdue ? "var(--bad)" : undefined } : undefined}>{fmtCOP(owed)}</dd></div>
-              <div><dt className="text-xs text-muted">Facturas</dt><dd className="font-semibold tabular-nums">{count}{last ? ` · ${last}` : ""}</dd></div>
             </dl>
             {s.notes && <p className="text-sm">{s.notes}</p>}
             {items.length > 0 && <p className="text-xs text-muted">Lo que más se les ha comprado: {items.join(", ")}.</p>}
-            <div className="space-y-2 rounded-xl border border-[var(--border)] p-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <h3 className="text-sm font-semibold">Cotización por pedir ({quote.length})</h3>
-                {quote.length > 0 && (
-                  <div className="flex gap-2">
-                    <a href={`/api/cotizacion/${s.id}`} className="btn-primary text-sm">Descargar Excel</a>
-                    <form action={markQuoteSent}><input type="hidden" name="supplierId" value={s.id} /><button className="btn-secondary text-sm">Ya la envié</button></form>
-                  </div>
-                )}
-              </div>
-              {quote.length === 0 ? <p className="text-xs text-muted">Nada pendiente. Agrega desde «Por pedir» o aquí abajo.</p> : (
-                <ul className="divide-y divide-[var(--border)] text-sm">
-                  {quote.map((q) => (
-                    <li key={q.id} className="flex items-center justify-between gap-2 py-1.5">
-                      <span className="min-w-0 truncate">{q.name}</span>
-                      <span className="flex shrink-0 items-center gap-1">
-                        <form action={updateQuoteItem} className="flex items-center gap-1">
-                          <input type="hidden" name="id" value={q.id} />
-                          <input name="qtyKg" inputMode="decimal" defaultValue={q.qtyKg} className="input !py-1 w-16 text-xs" aria-label="Kilos" /> <span className="text-xs text-muted">kg</span>
-                          <button className="text-xs underline">Guardar</button>
-                        </form>
-                        <form action={removeQuoteItem}><input type="hidden" name="id" value={q.id} /><button className="text-xs text-muted underline" aria-label="Quitar">Quitar</button></form>
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              <form action={addToQuote} className="flex flex-wrap items-center gap-1">
-                <input type="hidden" name="supplierId" value={s.id} />
-                <select name="rawMaterialId" className="input !py-1 text-xs" aria-label="Producto">
-                  <option value="">Otro producto (escribe el nombre)…</option>
-                  {materials.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
-                </select>
-                <input name="name" placeholder="Nombre si es otro" className="input !py-1 w-36 text-xs" />
-                <input name="qtyKg" inputMode="decimal" placeholder="kg" className="input !py-1 w-16 text-xs" />
-                <button className="btn-secondary !px-2 !py-1 text-xs">Agregar</button>
-              </form>
-            </div>
             <details>
               <summary className="cursor-pointer text-sm underline">Editar datos</summary>
               <div className="pt-3"><SupplierForm initial={{ id: s.id, name: s.name, nit: s.nit ?? "", phone: s.phone ?? "", notes: s.notes ?? "" }} button="Guardar" /></div>

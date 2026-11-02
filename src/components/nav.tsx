@@ -30,6 +30,7 @@ const ADMIN: Group[] = [
     title: "Negocio",
     items: [
       { href: "/proveedores", label: "Proveedores", icon: IconUsers, hint: "Quién nos vende y cuánto se debe" },
+      { href: "/cotizaciones", label: "Cotizaciones", icon: IconScale, hint: "Pedir precios a proveedores" },
       { href: "/catalogo", label: "Catálogo", icon: IconLayers, hint: "Productos, presentaciones y recetas" },
       { href: "/precios", label: "Precios", icon: IconTag, hint: "Competencia y márgenes" },
       { href: "/productos", label: "Productos", icon: IconLeaf, hint: "Qué vende y cuánto deja" },

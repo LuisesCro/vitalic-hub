@@ -364,7 +364,18 @@ export const restockRequests = pgTable(
   (t) => [index("restock_requests_status_idx").on(t.status)],
 );
 
-// Lista de productos que se le van a pedir (cotizar) a cada proveedor.
+// Solicitud de cotización generada para un proveedor (documento con número y fecha).
+export const quotes = pgTable("quotes", {
+  id: serial("id").primaryKey(),
+  supplierId: integer("supplier_id").notNull().references(() => suppliers.id, { onDelete: "cascade" }),
+  status: text("status").notNull().default("borrador"), // borrador | enviada
+  note: text("note"),
+  createdBy: integer("created_by").references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  sentAt: timestamp("sent_at", { withTimezone: true }),
+});
+
+// Productos por pedir a cada proveedor; al generar la cotización pasan a ser sus renglones.
 export const quoteItems = pgTable(
   "quote_items",
   {
@@ -373,7 +384,9 @@ export const quoteItems = pgTable(
     rawMaterialId: integer("raw_material_id").references(() => rawMaterials.id),
     name: text("name").notNull(),
     qtyKg: qty("qty_kg").notNull().default(0),
-    status: text("status").notNull().default("borrador"), // borrador | enviada
+    quoteId: integer("quote_id").references(() => quotes.id, { onDelete: "cascade" }),
+    price: money("price").notNull().default(0), // precio por kg sin IVA
+    status: text("status").notNull().default("borrador"), // borrador (por pedir) | cotizada
     createdBy: integer("created_by").references(() => users.id),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     sentAt: timestamp("sent_at", { withTimezone: true }),
