@@ -1,0 +1,1 @@
+ALTER TABLE "products" ADD COLUMN "liquidation" boolean DEFAULT false NOT NULL;

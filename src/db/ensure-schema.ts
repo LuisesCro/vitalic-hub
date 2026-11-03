@@ -146,6 +146,8 @@ const STATEMENTS = [
     "created_at" timestamp with time zone DEFAULT now() NOT NULL
   )`,
   sql`CREATE INDEX IF NOT EXISTS "supplier_prices_raw_idx" ON "supplier_prices" ("raw_material_id")`,
+  // 0016_liquidacion
+  sql`ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "liquidation" boolean DEFAULT false NOT NULL`,
   // 0008_granel_en_caja
   sql`ALTER TABLE "bulk_sales" ADD COLUMN IF NOT EXISTS "pos_sale_id" integer`,
   // 0009_devoluciones_y_stock
@@ -190,7 +192,7 @@ async function upToDate(): Promise<boolean> {
     select (select count(*) from information_schema.columns
              where table_schema = 'public' and (
                (table_name = 'users' and column_name in ('role', 'active')) or
-               (table_name = 'products' and column_name in ('family_id', 'format', 'paused_by_family', 'stock_units')) or
+               (table_name = 'products' and column_name in ('family_id', 'format', 'paused_by_family', 'stock_units', 'liquidation')) or
                (table_name = 'pos_sales' and column_name = 'return_of') or
                (table_name = 'cash_sessions' and column_name = 'sales_breb') or
                (table_name = 'purchases' and column_name in ('payment_term', 'due_date')) or
@@ -200,7 +202,7 @@ async function upToDate(): Promise<boolean> {
          + (select case when exists (select 1 from products where format = 'papeleta') then 0 else 1 end)
          + (select count(*) from information_schema.tables
              where table_schema = 'public' and table_name in ('cash_sessions', 'cash_movements', 'product_families', 'product_components', 'bulk_sales', 'supplier_payments', 'pos_sales', 'invoice_photos', 'restock_requests', 'quote_items', 'quotes', 'supplier_prices')) as n`);
-  return Number(rows[0]?.n) === 28;
+  return Number(rows[0]?.n) === 29;
 }
 
 let ready: Promise<void> | null = null;

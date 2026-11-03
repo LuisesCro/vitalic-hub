@@ -42,6 +42,7 @@ export type PriceRecommendation = {
     | "sin-costo-solo-competencia"
     | "no-bajar"
     | "revisar-costo"
+    | "liquidacion"
     | "sin-datos";
 };
 
@@ -119,5 +120,6 @@ export const RULE_LABELS: Record<PriceRecommendation["rule"], string> = {
   "revisar-costo": "Revisar costo: parece mal cargado",
   "sin-costo-solo-competencia": "Sin costo cargado: solo competencia",
   "no-bajar": "Se mantiene: no se bajan precios",
+  liquidacion: "En liquidación: no se recomienda subir el precio",
   "sin-datos": "Sin costo ni competencia",
 };

@@ -10,7 +10,7 @@ import { margin, recommendPrice, RULE_LABELS } from "@/lib/pricing";
 import { getSettings } from "@/lib/settings";
 import { normalize } from "@/lib/units";
 import { CompetitorForm } from "./competitor-form";
-import { setProductPrice } from "./actions";
+import { setLiquidation, setProductPrice } from "./actions";
 
 export const metadata = { title: "Precios · Vitalic Hub" };
 
@@ -48,10 +48,14 @@ export default async function PreciosPage({ searchParams }: { searchParams: Prom
       const cost = unitCostFromComponents(p, comps, s);
       const currentGross = Math.round(p.priceNet * (1 + p.ivaRate));
       const comp = latest.get(p.id) ?? new Map<string, number>();
-      const rec = recommendPrice(
+      const computed = recommendPrice(
         { costNet: cost, currentPriceGross: currentGross, ivaRate: p.ivaRate, category: p.category, competitorPricesGross: [...comp.values()] },
         s,
       );
+      // En liquidación se quiere salir del producto: se mantiene el precio que tú pusiste.
+      const rec = p.liquidation
+        ? { ...computed, recommendedGross: currentGross, change: 0, marginAtRecommended: cost !== null ? margin(p.priceNet, cost) : null, rule: "liquidacion" as const }
+        : computed;
       return { p, cost, currentGross, currentMargin: cost !== null ? margin(p.priceNet, cost) : null, comp, rec };
     })
     .filter((r) =>
@@ -92,7 +96,7 @@ export default async function PreciosPage({ searchParams }: { searchParams: Prom
           <tbody>
             {table.slice(0, 1500).map((r) => (
               <tr key={r.p.id}>
-                <td className="min-w-44">{r.p.name}</td>
+                <td className="min-w-44">{r.p.name}{r.p.liquidation && <span className="ml-1 rounded-full px-2 py-0.5 text-xs font-medium" style={{ background: "var(--warn-bg, #fdf1d6)", color: "var(--warn)" }}>En liquidación</span>}</td>
                 <td className="text-right">{fmtCOP(r.cost)}</td>
                 <td className="text-right">{fmtCOP(r.currentGross)}</td>
                 <td className={`text-right ${r.currentMargin !== null && r.currentMargin < s.margenMinimo ? "text-red-600" : ""}`}>{fmtPct(r.currentMargin)}</td>
@@ -108,6 +112,11 @@ export default async function PreciosPage({ searchParams }: { searchParams: Prom
                     <input type="hidden" name="id" value={r.p.id} />
                     <input name="price" inputMode="numeric" placeholder={String(r.currentGross)} className="input w-24" />
                     <button className="btn-secondary">Guardar</button>
+                  </form>
+                  <form action={setLiquidation} className="mt-1">
+                    <input type="hidden" name="id" value={r.p.id} />
+                    <input type="hidden" name="on" value={r.p.liquidation ? "0" : "1"} />
+                    <button className="text-xs underline text-muted">{r.p.liquidation ? "Quitar liquidación" : "Marcar en liquidación"}</button>
                   </form>
                 </td>
               </tr>

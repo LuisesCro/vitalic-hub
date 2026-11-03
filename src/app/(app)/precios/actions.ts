@@ -60,3 +60,12 @@ export async function setProductPrice(formData: FormData) {
   revalidatePath("/catalogo", "layout");
   revalidatePath("/", "layout");
 }
+
+/** Marca o quita un producto como «en liquidación»: el motor deja de recomendar subirle el precio. */
+export async function setLiquidation(formData: FormData) {
+  await requireAdmin();
+  const id = Number(formData.get("id"));
+  if (!id) return;
+  await db.update(products).set({ liquidation: String(formData.get("on")) === "1" }).where(eq(products.id, id));
+  revalidatePath("/precios");
+}

@@ -68,6 +68,8 @@ export const products = pgTable(
     format: text("format").notNull().default("bolsa"), // bolsa | sachet | unidad
     // Inactiva solo porque se dio de baja su producto completo: vuelve al reactivarlo.
     pausedByFamily: boolean("paused_by_family").notNull().default(false),
+    // En liquidación: se quiere salir del producto, el motor de precios no recomienda subirlo.
+    liquidation: boolean("liquidation").notNull().default(false),
     // Bolsas o unidades listas para vender. Null = no se lleva el conteo de este producto.
     stockUnits: numeric("stock_units", { precision: 14, scale: 3, mode: "number" }),
   },
