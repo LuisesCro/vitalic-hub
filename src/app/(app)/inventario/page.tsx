@@ -4,9 +4,9 @@ import { db } from "@/db";
 import { rawMaterials } from "@/db/schema";
 import { fmtCOP, fmtNum } from "@/lib/format";
 import { rawMaterialConsumption, trackedRawMaterialIds } from "@/lib/reports";
-import { recordCount, setBagStock } from "./actions";
+import { recordCount, setBagStock, startBagCount } from "./actions";
 import { products } from "@/db/schema";
-import { isNotNull, and } from "drizzle-orm";
+import { isNotNull, isNull, and } from "drizzle-orm";
 import { StockAlerts } from "@/components/stock-alerts";
 import { stockAlerts } from "@/lib/stock-alerts";
 
@@ -23,6 +23,7 @@ export default async function InventarioPage() {
   ]);
   const alerts = await stockAlerts({ insumos: true });
   const bags = await db.select({ id: products.id, name: products.name, stock: products.stockUnits }).from(products).where(and(eq(products.active, true), isNotNull(products.stockUnits))).orderBy(asc(products.stockUnits), asc(products.name));
+  const uncountedBags = await db.select({ name: products.name }).from(products).where(and(eq(products.active, true), isNull(products.stockUnits), eq(products.format, "bolsa"))).orderBy(asc(products.name));
   const rows = materials
     .map((m) => {
       const perDay = consumption.get(m.id) ?? 0;
@@ -70,6 +71,13 @@ export default async function InventarioPage() {
             ))}
           </tbody>
         </table>
+        <form action={startBagCount} className="mt-3 flex flex-wrap items-end gap-2 border-t border-[var(--border)] pt-3">
+          <label><span className="label">Empezar a contar otro producto</span>
+            <input name="name" list="bolsas-sin-conteo" required placeholder="Escribe el nombre del producto" className="input w-72" /></label>
+          <datalist id="bolsas-sin-conteo">{uncountedBags.map((b) => <option key={b.name} value={b.name} />)}</datalist>
+          <label><span className="label">Cuántas hay</span><input name="units" inputMode="decimal" required className="input w-24" /></label>
+          <button className="btn-secondary">Empezar a contar</button>
+        </form>
       </details>
       <div className="card overflow-x-auto">
         <table className="table-base">

@@ -49,3 +49,18 @@ export async function setBagStock(formData: FormData) {
   revalidatePath("/vender");
   revalidatePath("/");
 }
+
+/** Empieza a llevar el conteo de bolsas de un producto que todavía no lo tenía (se busca por nombre). */
+export async function startBagCount(formData: FormData) {
+  await requireAdmin();
+  const name = String(formData.get("name") ?? "").trim().toLowerCase();
+  const units = kgField(formData, "units");
+  if (!name || units === null || units < 0) return;
+  const all = await db.select({ id: products.id, name: products.name }).from(products).where(eq(products.active, true));
+  const found = all.find((p) => p.name.toLowerCase() === name);
+  if (!found) return;
+  await db.update(products).set({ stockUnits: units }).where(eq(products.id, found.id));
+  revalidatePath("/inventario");
+  revalidatePath("/vender");
+  revalidatePath("/");
+}
