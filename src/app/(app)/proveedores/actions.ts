@@ -74,13 +74,18 @@ export async function removeQuoteItem(formData: FormData) {
   refresh();
 }
 
-/** Pasa un renglón por pedir a otro proveedor; desde ese momento es una decisión de quien lo movió. */
+/** Edita un renglón por pedir: kilos y proveedor. Desde ese momento es una decisión de quien lo editó y el HUB no lo toca. */
 export async function moveQuoteItem(formData: FormData) {
   const session = await requireAdmin();
   const id = Number(formData.get("id"));
   const supplierId = Number(formData.get("supplierId"));
   if (!id || !supplierId) return;
-  await db.update(quoteItems).set({ supplierId, createdBy: session.userId }).where(and(eq(quoteItems.id, id), eq(quoteItems.status, "borrador")));
+  const qty = formData.get("qtyKg");
+  const qtyKg = qty === null ? null : num(qty);
+  await db
+    .update(quoteItems)
+    .set({ supplierId, createdBy: session.userId, ...(qtyKg !== null && qtyKg > 0 ? { qtyKg } : {}) })
+    .where(and(eq(quoteItems.id, id), eq(quoteItems.status, "borrador")));
   refresh();
 }
 

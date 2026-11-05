@@ -84,7 +84,7 @@ export default async function CotizacionesPage() {
           <h2 className="font-semibold">Pedido sugerido por proveedor</h2>
           {grand > 0 && <span className="text-sm text-muted">Estimado {fmtCOP(grand)} sin IVA{grandSaving > 0 ? ` · ahorras ~${fmtCOP(grandSaving)} eligiendo el más barato` : ""}</span>}
         </div>
-        <p className="text-sm text-muted">El HUB arma esta lista solo con lo que se está agotando y lo que la cajera marcó urgente, y pone cada producto con el proveedor del <strong>menor precio por kilo</strong> (compras y cotizaciones de los últimos 6 meses). Si mueves o cambias algo, queda como lo dejaste.</p>
+        <p className="text-sm text-muted">El HUB arma esta lista solo con lo que se está agotando y lo que la cajera marcó urgente, y pone cada producto con el proveedor del <strong>menor precio por kilo</strong> (compras y cotizaciones de los últimos 6 meses). Puedes cambiar los kilos o el proveedor de cada producto con <strong>Guardar cambios</strong>; lo que edites queda como lo dejaste y el HUB ya no lo cambia.</p>
         {bySupplier.size === 0 ? (
           <p className="text-sm text-muted">Nada por pedir ahora mismo. Cuando algo se empiece a acabar aparecerá aquí con su proveedor; también puedes agregarlo a mano desde <Link href="/por-pedir" className="underline">Lo que se acaba</Link>.</p>
         ) : (
@@ -110,12 +110,16 @@ export default async function CotizacionesPage() {
                       </div>
                       {it.note && <p className="text-xs" style={{ color: it.warn ? "var(--warn)" : "var(--good)" }}>{it.note}</p>}
                       <div className="flex flex-wrap items-center gap-1">
-                        <form action={moveQuoteItem} className="flex items-center gap-1">
+                        <form action={moveQuoteItem} className="flex flex-wrap items-center gap-1">
                           <input type="hidden" name="id" value={it.id} />
-                          <select name="supplierId" defaultValue={id} className="input !py-1 text-xs" aria-label="Pasar a otro proveedor">
+                          <label className="flex items-center gap-1 text-xs">
+                            <input name="qtyKg" inputMode="decimal" defaultValue={String(it.qtyKg).replace(".", ",")} className="input !py-1 w-16 text-xs" aria-label="Kilos a pedir" />
+                            kg
+                          </label>
+                          <select name="supplierId" defaultValue={id} className="input !py-1 max-w-[11rem] text-xs" aria-label="Proveedor">
                             {supplierList.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
                           </select>
-                          <button className="btn-secondary !px-2 !py-1 text-xs">Mover</button>
+                          <button className="btn-secondary !px-2 !py-1 text-xs">Guardar cambios</button>
                         </form>
                         <form action={removeQuoteItem}><input type="hidden" name="id" value={it.id} /><button className="btn-secondary !px-2 !py-1 text-xs" title={it.auto ? "No vuelve a aparecer en 14 días" : undefined}>Quitar</button></form>
                       </div>
