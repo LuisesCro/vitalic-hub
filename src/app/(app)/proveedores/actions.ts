@@ -32,6 +32,7 @@ export async function saveSupplier(_prev: SupplierState, formData: FormData): Pr
 const refresh = () => {
   revalidatePath("/proveedores");
   revalidatePath("/por-pedir");
+  revalidatePath("/cotizaciones");
 };
 
 /** Agrega un producto a la cotización de un proveedor (si ya estaba, le actualiza la cantidad). */
@@ -49,20 +50,37 @@ export async function addToQuote(formData: FormData) {
   if (!name) return;
   const open = and(eq(quoteItems.supplierId, supplierId), eq(quoteItems.status, "borrador"));
   const existing = (await db.select().from(quoteItems).where(open)).find((q) => (rawMaterialId ? q.rawMaterialId === rawMaterialId : q.name.toLowerCase() === name.toLowerCase()));
-  if (existing) await db.update(quoteItems).set({ qtyKg }).where(eq(quoteItems.id, existing.id));
+  // Si era un renglón del pedido automático, al tocarlo pasa a ser de quien lo editó y el HUB ya no lo cambia.
+  if (existing) await db.update(quoteItems).set({ qtyKg, createdBy: session.userId }).where(eq(quoteItems.id, existing.id));
   else await db.insert(quoteItems).values({ supplierId, rawMaterialId, name, qtyKg, createdBy: session.userId });
   refresh();
 }
 
 export async function updateQuoteItem(formData: FormData) {
-  await requireAdmin();
-  await db.update(quoteItems).set({ qtyKg: num(formData.get("qtyKg")) }).where(eq(quoteItems.id, Number(formData.get("id"))));
+  const session = await requireAdmin();
+  await db.update(quoteItems).set({ qtyKg: num(formData.get("qtyKg")), createdBy: session.userId }).where(eq(quoteItems.id, Number(formData.get("id"))));
   refresh();
 }
 
+/** Quita un renglón por pedir. Si lo había puesto el pedido automático, queda descartado unos días para que no vuelva solo. */
 export async function removeQuoteItem(formData: FormData) {
   await requireAdmin();
-  await db.delete(quoteItems).where(eq(quoteItems.id, Number(formData.get("id"))));
+  const id = Number(formData.get("id"));
+  const [it] = await db.select().from(quoteItems).where(eq(quoteItems.id, id));
+  if (!it) return;
+  if (it.createdBy === null && it.quoteId === null && it.status === "borrador") {
+    await db.update(quoteItems).set({ status: "descartada", createdAt: new Date() }).where(eq(quoteItems.id, id));
+  } else await db.delete(quoteItems).where(eq(quoteItems.id, id));
+  refresh();
+}
+
+/** Pasa un renglón por pedir a otro proveedor; desde ese momento es una decisión de quien lo movió. */
+export async function moveQuoteItem(formData: FormData) {
+  const session = await requireAdmin();
+  const id = Number(formData.get("id"));
+  const supplierId = Number(formData.get("supplierId"));
+  if (!id || !supplierId) return;
+  await db.update(quoteItems).set({ supplierId, createdBy: session.userId }).where(and(eq(quoteItems.id, id), eq(quoteItems.status, "borrador")));
   refresh();
 }
 

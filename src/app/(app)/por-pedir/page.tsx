@@ -8,6 +8,7 @@ import { addToQuote } from "../proveedores/actions";
 import { PageHeader } from "@/components/ui";
 import { requireSession } from "@/lib/session";
 import { stockAlerts, type StockAlert } from "@/lib/stock-alerts";
+import { syncAutoOrder } from "@/lib/auto-order-sync";
 import { markOrdered, toggleUrgent } from "./actions";
 
 export const metadata = { title: "Lo que se acaba · Vitalic Hub" };
@@ -19,6 +20,8 @@ const stamp = (d: Date) => d.toLocaleString("es-CO", { timeZone: "America/Bogota
 export default async function PorPedirPage() {
   const session = await requireSession();
   const isAdmin = session.role === "admin";
+  // Para el administrador, el pedido por proveedor se arma solo antes de mostrar la lista.
+  if (isAdmin) await syncAutoOrder();
   const alerts = await stockAlerts({ insumos: true });
   const pending = await db
     .select({ r: restockRequests, by: users.name })
@@ -101,7 +104,9 @@ export default async function PorPedirPage() {
 
   return (
     <div className="space-y-4">
-      <PageHeader title="Lo que se acaba" subtitle={isAdmin ? "Lo que marcó la cajera como urgente y todo lo que se está agotando." : "Marca lo más urgente de pedir. Luis lo ve de inmediato."} />
+      <PageHeader title="Lo que se acaba" subtitle={isAdmin ? "Lo que marcó la cajera como urgente y todo lo que se está agotando." : "Marca lo más urgente de pedir. Luis lo ve de inmediato."}>
+        {isAdmin && <Link href="/cotizaciones" className="btn-primary">Ver pedido armado</Link>}
+      </PageHeader>
 
       <section className="card">
         <h2 className="mb-2 font-semibold">Marcado como urgente ({pending.length})</h2>
