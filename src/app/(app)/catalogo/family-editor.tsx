@@ -20,6 +20,7 @@ type Presentation = {
   sku: string;
   active: boolean;
   cost: string; // costo de compra por unidad (sin IVA) cuando el producto no tiene receta
+  packaging: string; // costo del envase (tarro, frasco) por unidad, sin IVA; vacío = el de los ajustes según el tamaño
   custom: Record<string, string> | null; // gramos por insumo cuando se ajustan a mano
 };
 export type EditorInitial = {
@@ -28,7 +29,7 @@ export type EditorInitial = {
   category: string;
   ivaRate: number;
   recipe: { ref: number; parts: number }[];
-  presentations: { id: number; format: Format; grams: number | null; priceGross: number; sku: string; active: boolean; cost: number | null; custom: Record<string, number> | null }[];
+  presentations: { id: number; format: Format; grams: number | null; priceGross: number; sku: string; active: boolean; cost: number | null; packaging: number | null; custom: Record<string, number> | null }[];
 };
 
 let seq = 0;
@@ -59,7 +60,7 @@ export function FamilyEditor({
   const [pres, setPres] = useState<Presentation[]>(() =>
     initial.presentations.map((p) => ({
       key: key(), id: p.id, format: p.format, grams: p.grams ? String(p.grams) : "", priceGross: String(Math.round(p.priceGross)),
-      sku: p.sku, active: p.active, cost: p.cost ? String(p.cost) : "", custom: p.custom ? Object.fromEntries(Object.entries(p.custom).map(([k, v]) => [k, String(v)])) : null,
+      sku: p.sku, active: p.active, cost: p.cost ? String(p.cost) : "", packaging: p.packaging ? String(p.packaging) : "", custom: p.custom ? Object.fromEntries(Object.entries(p.custom).map(([k, v]) => [k, String(v)])) : null,
     })),
   );
 
@@ -86,7 +87,7 @@ export function FamilyEditor({
     const grams = p.custom ? comps.reduce((t, c) => t + c.grams, 0) : num(p.grams);
     // Sin receta (producto de terceros) el costo es el de compra que se escribe en la presentación.
     const cost = unitCostFromComponents(
-      { grams, vendtyCost: comps.length ? null : num(p.cost) || null, packagingCost: 0 },
+      { grams, vendtyCost: comps.length ? null : num(p.cost) || null, packagingCost: num(p.packaging) },
       comps.map((c) => ({ grams: c.grams, costPerKg: costOf(c.ref) || null })),
       settings,
     );
@@ -101,7 +102,7 @@ export function FamilyEditor({
   }
 
   function addPresentation(format: Format, grams: number) {
-    const draft: Presentation = { key: key(), format, grams: String(grams), priceGross: format === "sachet" ? "1000" : "", sku: "", active: true, cost: "", custom: null };
+    const draft: Presentation = { key: key(), format, grams: String(grams), priceGross: format === "sachet" ? "1000" : "", sku: "", active: true, cost: "", packaging: "", custom: null };
     const { suggested } = evaluate(draft);
     if (format !== "sachet" && suggested) draft.priceGross = String(suggested);
     setPres((list) => [...list, draft]);
@@ -135,6 +136,7 @@ export function FamilyEditor({
       sku: p.sku.trim() || undefined,
       active: p.active,
       cost: validRecipe.length ? undefined : num(p.cost) || undefined,
+      packaging: num(p.packaging) || undefined,
       components: p.custom ? componentsOf(p).map((c) => ({ ref: c.ref, grams: c.grams })) : undefined,
     })),
   });
@@ -290,6 +292,10 @@ export function FamilyEditor({
                 )}
                 {!p.active && <span className="badge" style={{ background: "var(--bad-bg)", color: "var(--bad)" }}>De baja al guardar</span>}
               </div>
+              <label className="block max-w-xs text-sm">
+                <span className="label">Costo del envase por unidad, sin IVA (tarro, frasco; opcional)</span>
+                <input value={p.packaging} onChange={(e) => update(p.key, { packaging: e.target.value })} inputMode="numeric" placeholder="Si lo dejas vacío se usa el de Ajustes" className="input" />
+              </label>
               {validRecipe.length === 0 && (
                 <label className="block max-w-xs text-sm">
                   <span className="label">Costo de compra por unidad (sin IVA)</span>
