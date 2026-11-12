@@ -156,6 +156,11 @@ async function saveEdits(purchaseId: number, formData: FormData) {
   }
   const issueDate = String(formData.get("issueDate") ?? "");
   if (issueDate) await db.update(purchases).set({ issueDate }).where(eq(purchases.id, purchaseId));
+  const supplierRaw = formData.get("supplierId");
+  if (supplierRaw !== null) {
+    const supplierId = Number(supplierRaw);
+    await db.update(purchases).set({ supplierId: Number.isInteger(supplierId) && supplierId > 0 ? supplierId : null }).where(eq(purchases.id, purchaseId));
+  }
 }
 
 export async function saveDraft(formData: FormData) {

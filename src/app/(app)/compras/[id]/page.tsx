@@ -24,6 +24,7 @@ export default async function CompraPage({ params, searchParams }: { params: Pro
   const p = purchase.p;
   const lines = await db.select().from(purchaseLines).where(eq(purchaseLines.purchaseId, id)).orderBy(asc(purchaseLines.id));
   const materials = await db.select({ id: rawMaterials.id, name: rawMaterials.name }).from(rawMaterials).orderBy(asc(rawMaterials.name));
+  const supplierList = await db.select({ id: suppliers.id, name: suppliers.name }).from(suppliers).orderBy(asc(suppliers.name));
   // Líneas de una factura confirmada que sí sumaron al inventario (las demás se pueden completar).
   const entered = new Set(
     lines.length
@@ -132,6 +133,13 @@ export default async function CompraPage({ params, searchParams }: { params: Pro
             No se confirmó: {falta === 1 ? "hay 1 producto" : `hay ${falta} productos`} del inventario sin peso (marcados en rojo). Escribe los kg por unidad, o elige «No va al inventario», y confirma de nuevo.
           </p>
         )}
+        <label className="block max-w-md">
+          <span className="label">Proveedor</span>
+          <select name="supplierId" defaultValue={p.supplierId ?? ""} disabled={locked} className="input">
+            <option value="">Sin identificar</option>
+            {supplierList.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
+        </label>
         <label className="block max-w-xs">
           <span className="label">Fecha de la factura</span>
           <input type="date" name="issueDate" defaultValue={p.issueDate ?? ""} disabled={locked} className="input" />
